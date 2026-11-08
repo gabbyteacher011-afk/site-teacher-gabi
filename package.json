@@ -1,0 +1,11 @@
+{
+  "name": "english-teacher-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de gestão de aulas de inglês (JavaScript puro, página única).",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node test/logic.test.js"
+  },
+  "engines": { "node": ">=18" }
+}
