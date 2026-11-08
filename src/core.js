@@ -5,7 +5,8 @@ const COLS = ['students', 'lessons', 'exercises', 'homework', 'plans', 'reports'
 const S = { mode: 'professora', portal: null, portalReady: false, portalAt: {}, guardAt: {}, portalError: null, settings: defaultSettings(), ready: false, loaded: {}, fromCache: {}, pending: {}, env: { ok: true }, syncError: null, unsubs: [], hubExists: false, timedOut: false };
 const M = {};
 COLS.forEach(c => { S[c] = []; M[c] = new Map(); });
-const NS = { user: null, db: null, downloads: null, assets: null };
+const NS = { user: null, db: null, downloads: null, assets: null, fileUrl: null };
+const fileUrl = id => id ? (NS.fileUrl ? NS.fileUrl(id) : '/_blob/' + id) : '';
 let UID = null;
 const UI = { f: {}, tab: {}, cal: { view: 'month', date: todayISO() }, finMonth: monthOf(todayISO()), finTab: 'mes', exTab: 'lib', repStudent: '', route: '', limit: {}, userName: '', compare: null, ignoreHash: null };
 const D = () => ({ students: S.students, lessons: S.lessons, exercises: S.exercises, homework: S.homework, plans: S.plans, reports: S.reports, charges: S.charges, payments: S.payments, materials: S.materials, goals: S.goals, tasks: S.tasks, notes: S.notes, contracts: S.contracts, stages: S.stages, recordings: S.recordings, groups: S.groups, packages: S.packages });
@@ -16,10 +17,10 @@ const pages = n => Math.max(1, n);
 /* ---------- erros ---------- */
 function errMsg(e) {
   const c = e && e.code;
-  if (c === 'invalid_argument') return 'Não foi possível gravar. Se você abriu este sistema por um link compartilhado com permissão só de leitura, peça acesso de edição ao dono.';
+  if (c === 'invalid_argument') return 'Não foi possível gravar. Confira os dados e tente de novo.';
   if (c === 'quota_exceeded') return 'O limite de armazenamento foi atingido. Exporte um backup e exclua registros antigos.';
   if (c === 'resource_exhausted') return 'Muitas operações seguidas. Aguarde alguns segundos e tente de novo.';
-  if (c === 'unavailable' || c === 'revoked') return 'Sem conexão com o banco de dados. Tente de novo em instantes.';
+  if (c === 'unavailable' || c === 'revoked') return (e && e.message) || 'Sem conexão com o servidor. Tente de novo em instantes.';
   return (e && e.message) || 'Erro inesperado.';
 }
 const safe = async fn => { try { return await fn(); } catch (e) { console.error(e); toast(errMsg(e), 'err'); } };
@@ -128,7 +129,6 @@ async function pool(items, fn, n) {
 /* ---------- sincronização ao vivo ---------- */
 function onSyncError(e) {
   S.syncError = (e && e.code) || 'unavailable';
-  if (e && e.code === 'revoked') S.env = { ok: false, reason: 'revoked' };
   scheduleRender();
 }
 function checkReady() { if (!S.ready && ['hub', ...COLS].every(k => S.loaded[k] && !S.fromCache[k])) S.ready = true; }
@@ -199,11 +199,24 @@ function keepFocus(fn, top) {
   window.scrollTo(0, top ? 0 : y);
 }
 function gateView() {
-  const msg = S.env.reason === 'revoked'
-    ? 'O acesso a esta página foi encerrado. Abra o link novamente pelo Claude.'
-    : 'Este sistema guarda seus dados no banco privado da sua conta. Abra a página pelo Claude, já conectada à sua conta, para entrar.';
-  return html`<div class="gate"><div class="card"><img src="${LOGO}" alt=""><h1>${brandName()}</h1><p class="muted">${msg}</p><p class="small muted">Seus dados não ficam expostos publicamente: cada pessoa que abre o link enxerga apenas a própria área.</p></div></div>`;
+  const r = S.env.reason, flash = (() => { try { const m = sessionStorage.getItem('eth_msg'); sessionStorage.removeItem('eth_msg'); return m || ''; } catch (e) { return ''; } })();
+  const head = html`<img src="${LOGO}" alt=""><h1>${brandName()}</h1>`;
+  if (r === 'noapi') return html`<div class="gate"><div class="card">${head}<p class="muted">Este site ainda não está ligado ao servidor. Quem administra precisa informar o endereço da API no arquivo <b>config.js</b>.</p></div></div>`;
+  if (r === 'offline') return html`<div class="gate"><div class="card">${head}<p class="muted">Não foi possível falar com o servidor agora.</p><p class="small muted">${S.env.detail || ''}</p><p><button type="button" class="btn primary" data-act="reload">Tentar de novo</button></p></div></div>`;
+  if (r === 'login') return html`<div class="gate"><div class="card" style="width:min(92vw,420px)">${head}<p class="muted">Entre com o e-mail e a senha que a professora criou para você.</p>
+    ${flash ? html`<p class="small" style="color:var(--bad)" role="alert">${flash}</p>` : ''}
+    <form data-form="login" class="stack" style="text-align:left"><label class="fld"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label>
+    <label class="fld"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label>
+    <p id="login-err" class="small" style="color:var(--bad);margin:0" role="alert"></p>
+    <button type="submit" class="btn primary">Entrar</button></form></div></div>`;
+  return html`<div class="gate"><div class="card">${head}<p class="muted">Não foi possível iniciar o sistema neste navegador.</p></div></div>`;
 }
+FORMS.login = async v => {
+  const err = $('#login-err'); if (err) err.textContent = '';
+  try { await API.login(String(v.email || '').trim(), String(v.password || '')); location.reload(); } catch (e) { if (err) err.textContent = e.message || 'Não foi possível entrar.'; }
+};
+ACTIONS.reload = () => location.reload();
+ACTIONS.logout = async () => { if (await confirmBox({ title: 'Sair', message: 'Encerrar a sessão neste aparelho?', ok: 'Sair' })) API.logout(); };
 const loadingView = () => html`<div class="gate"><div class="card" style="width:min(92vw,420px)"><img src="${LOGO}" alt=""><h1>${brandName()}</h1><div class="stack-s" style="margin-top:18px"><div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:60%"></div></div><p class="small muted" style="margin:16px 0 0">Carregando seus dados…</p></div></div>`;
 const brandName = () => (!S.settings.platformName || S.settings.platformName === 'English Teacher Hub') ? BRAND.name : S.settings.platformName;
 function buildShell() {
@@ -222,6 +235,7 @@ function buildShell() {
         <button type="button" class="icon-btn bell" id="bell" data-act="bell-open"></button>
         <button type="button" class="btn primary" data-act="quick-add">${ico('plus')}<span class="hide-s">Novo</span></button>
         <button type="button" class="icon-btn" data-act="toggle-theme" id="theme-btn" aria-label="Alternar tema claro e escuro"></button>
+        <button type="button" class="btn" data-act="logout">Sair</button>
       </div></header>
       <main class="content" id="main" tabindex="-1"></main>
     </div>
@@ -377,11 +391,20 @@ async function wipeAll() {
 async function restoreBackup(obj, replace) {
   validateBackup(obj);
   if (replace) await wipeAll();
-  const jobs = [];
-  for (const c of COLS) for (const it of (obj.collections[c] || [])) jobs.push([c, it]);
-  await pool(jobs, ([c, it]) => put(c, it), 6);
+  /* grava em etapas: quem é referenciado (turmas, exercícios, alunos…) vem antes de quem referencia */
+  const L = c => obj.collections[c] || [];
+  const tiers = [
+    ['groups', 'exercises', 'packages'], ['students'], ['materials', 'stages', 'contracts', 'goals', 'tasks', 'notes', 'charges'],
+    [['lessons', x => !x.makeupFor]], [['lessons', x => !!x.makeupFor], 'homework', 'reports', 'recordings', 'payments'], ['plans']
+  ];
+  let n = 0;
+  for (const tier of tiers) {
+    const jobs = [];
+    for (const t of tier) { const [c, f] = Array.isArray(t) ? t : [t, null]; for (const it of L(c)) if (!f || f(it)) jobs.push([c, it]); }
+    await pool(jobs, ([c, it]) => put(c, it), 6); n += jobs.length;
+  }
   if (obj.settings && typeof obj.settings === 'object') await saveSettings({ ...defaultSettings(), ...obj.settings });
-  return jobs.length;
+  return n;
 }
 async function saveFile(filename, data) {
   if (!NS.downloads) { toast('Download indisponível neste ambiente.', 'err'); return false; }

@@ -12,7 +12,7 @@
   const docRef = path => ({
     path, id: path.split('/').pop(), collection: n => colRef(path + '/' + n),
     async get() { return { exists: store.has(path), id: this.id, data: () => clone(store.get(path)) }; },
-    async set(d) { if (failWrites.on) { const e = new Error('x'); e.code = 'unavailable'; throw e; } store.set(path, clone(d)); notify(); },
+    async set(d) { if (failWrites.on) { const e = new Error('Sem conexão com o servidor.'); e.code = 'unavailable'; throw e; } store.set(path, clone(d)); notify(); },
     async delete() { store.delete(path); notify(); },
     onSnapshot(cb) { const f = () => cb({ exists: store.has(path), id: this.id, data: () => clone(store.get(path)), metadata: { fromCache: false, hasPendingWrites: false } }); subs.push(f); setTimeout(f, 0); return () => { subs.splice(subs.indexOf(f), 1); }; }
   });
@@ -26,5 +26,5 @@
     downloads: { save: async x => { window.__downloads.push({ filename: x.filename, size: x.data && (x.data.size || x.data.length || x.data.byteLength) }); } },
     assets: { upload: async b => ({ id: 'a' + Date.now(), url: '/_blob/x', sizeBytes: b.size, contentType: b.type }), delete: async id => { (window.__deleted = window.__deleted || []).push(id); } }
   };
-  window.claude = { use: async n => caps[n] || null };
+  window.__TEST_HOST = { use: async n => caps[n] || null };
 })();

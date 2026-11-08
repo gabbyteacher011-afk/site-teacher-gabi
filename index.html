@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>English Teacher Hub</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Gaegu:wght@400;700&display=swap">
 <style>
 /* Identidade: Teacher Gabriela Campos — rosé #B45C64/#9F5153, azul #2A506D, lavanda #C4C0D6, fundo creme,
@@ -394,6 +393,7 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
 </head>
 <body>
 <div id="root"></div><div id="modals"></div><div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 "use strict";
@@ -1134,7 +1134,8 @@ const COLS = ['students', 'lessons', 'exercises', 'homework', 'plans', 'reports'
 const S = { mode: 'professora', portal: null, portalReady: false, portalAt: {}, guardAt: {}, portalError: null, settings: defaultSettings(), ready: false, loaded: {}, fromCache: {}, pending: {}, env: { ok: true }, syncError: null, unsubs: [], hubExists: false, timedOut: false };
 const M = {};
 COLS.forEach(c => { S[c] = []; M[c] = new Map(); });
-const NS = { user: null, db: null, downloads: null, assets: null };
+const NS = { user: null, db: null, downloads: null, assets: null, fileUrl: null };
+const fileUrl = id => id ? (NS.fileUrl ? NS.fileUrl(id) : '/_blob/' + id) : '';
 let UID = null;
 const UI = { f: {}, tab: {}, cal: { view: 'month', date: todayISO() }, finMonth: monthOf(todayISO()), finTab: 'mes', exTab: 'lib', repStudent: '', route: '', limit: {}, userName: '', compare: null, ignoreHash: null };
 const D = () => ({ students: S.students, lessons: S.lessons, exercises: S.exercises, homework: S.homework, plans: S.plans, reports: S.reports, charges: S.charges, payments: S.payments, materials: S.materials, goals: S.goals, tasks: S.tasks, notes: S.notes, contracts: S.contracts, stages: S.stages, recordings: S.recordings, groups: S.groups, packages: S.packages });
@@ -1145,10 +1146,10 @@ const pages = n => Math.max(1, n);
 /* ---------- erros ---------- */
 function errMsg(e) {
   const c = e && e.code;
-  if (c === 'invalid_argument') return 'Não foi possível gravar. Se você abriu este sistema por um link compartilhado com permissão só de leitura, peça acesso de edição ao dono.';
+  if (c === 'invalid_argument') return 'Não foi possível gravar. Confira os dados e tente de novo.';
   if (c === 'quota_exceeded') return 'O limite de armazenamento foi atingido. Exporte um backup e exclua registros antigos.';
   if (c === 'resource_exhausted') return 'Muitas operações seguidas. Aguarde alguns segundos e tente de novo.';
-  if (c === 'unavailable' || c === 'revoked') return 'Sem conexão com o banco de dados. Tente de novo em instantes.';
+  if (c === 'unavailable' || c === 'revoked') return (e && e.message) || 'Sem conexão com o servidor. Tente de novo em instantes.';
   return (e && e.message) || 'Erro inesperado.';
 }
 const safe = async fn => { try { return await fn(); } catch (e) { console.error(e); toast(errMsg(e), 'err'); } };
@@ -1257,7 +1258,6 @@ async function pool(items, fn, n) {
 /* ---------- sincronização ao vivo ---------- */
 function onSyncError(e) {
   S.syncError = (e && e.code) || 'unavailable';
-  if (e && e.code === 'revoked') S.env = { ok: false, reason: 'revoked' };
   scheduleRender();
 }
 function checkReady() { if (!S.ready && ['hub', ...COLS].every(k => S.loaded[k] && !S.fromCache[k])) S.ready = true; }
@@ -1328,11 +1328,24 @@ function keepFocus(fn, top) {
   window.scrollTo(0, top ? 0 : y);
 }
 function gateView() {
-  const msg = S.env.reason === 'revoked'
-    ? 'O acesso a esta página foi encerrado. Abra o link novamente pelo Claude.'
-    : 'Este sistema guarda seus dados no banco privado da sua conta. Abra a página pelo Claude, já conectada à sua conta, para entrar.';
-  return html`<div class="gate"><div class="card"><img src="${LOGO}" alt=""><h1>${brandName()}</h1><p class="muted">${msg}</p><p class="small muted">Seus dados não ficam expostos publicamente: cada pessoa que abre o link enxerga apenas a própria área.</p></div></div>`;
+  const r = S.env.reason, flash = (() => { try { const m = sessionStorage.getItem('eth_msg'); sessionStorage.removeItem('eth_msg'); return m || ''; } catch (e) { return ''; } })();
+  const head = html`<img src="${LOGO}" alt=""><h1>${brandName()}</h1>`;
+  if (r === 'noapi') return html`<div class="gate"><div class="card">${head}<p class="muted">Este site ainda não está ligado ao servidor. Quem administra precisa informar o endereço da API no arquivo <b>config.js</b>.</p></div></div>`;
+  if (r === 'offline') return html`<div class="gate"><div class="card">${head}<p class="muted">Não foi possível falar com o servidor agora.</p><p class="small muted">${S.env.detail || ''}</p><p><button type="button" class="btn primary" data-act="reload">Tentar de novo</button></p></div></div>`;
+  if (r === 'login') return html`<div class="gate"><div class="card" style="width:min(92vw,420px)">${head}<p class="muted">Entre com o e-mail e a senha que a professora criou para você.</p>
+    ${flash ? html`<p class="small" style="color:var(--bad)" role="alert">${flash}</p>` : ''}
+    <form data-form="login" class="stack" style="text-align:left"><label class="fld"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label>
+    <label class="fld"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label>
+    <p id="login-err" class="small" style="color:var(--bad);margin:0" role="alert"></p>
+    <button type="submit" class="btn primary">Entrar</button></form></div></div>`;
+  return html`<div class="gate"><div class="card">${head}<p class="muted">Não foi possível iniciar o sistema neste navegador.</p></div></div>`;
 }
+FORMS.login = async v => {
+  const err = $('#login-err'); if (err) err.textContent = '';
+  try { await API.login(String(v.email || '').trim(), String(v.password || '')); location.reload(); } catch (e) { if (err) err.textContent = e.message || 'Não foi possível entrar.'; }
+};
+ACTIONS.reload = () => location.reload();
+ACTIONS.logout = async () => { if (await confirmBox({ title: 'Sair', message: 'Encerrar a sessão neste aparelho?', ok: 'Sair' })) API.logout(); };
 const loadingView = () => html`<div class="gate"><div class="card" style="width:min(92vw,420px)"><img src="${LOGO}" alt=""><h1>${brandName()}</h1><div class="stack-s" style="margin-top:18px"><div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:60%"></div></div><p class="small muted" style="margin:16px 0 0">Carregando seus dados…</p></div></div>`;
 const brandName = () => (!S.settings.platformName || S.settings.platformName === 'English Teacher Hub') ? BRAND.name : S.settings.platformName;
 function buildShell() {
@@ -1351,6 +1364,7 @@ function buildShell() {
         <button type="button" class="icon-btn bell" id="bell" data-act="bell-open"></button>
         <button type="button" class="btn primary" data-act="quick-add">${ico('plus')}<span class="hide-s">Novo</span></button>
         <button type="button" class="icon-btn" data-act="toggle-theme" id="theme-btn" aria-label="Alternar tema claro e escuro"></button>
+        <button type="button" class="btn" data-act="logout">Sair</button>
       </div></header>
       <main class="content" id="main" tabindex="-1"></main>
     </div>
@@ -1506,11 +1520,20 @@ async function wipeAll() {
 async function restoreBackup(obj, replace) {
   validateBackup(obj);
   if (replace) await wipeAll();
-  const jobs = [];
-  for (const c of COLS) for (const it of (obj.collections[c] || [])) jobs.push([c, it]);
-  await pool(jobs, ([c, it]) => put(c, it), 6);
+  /* grava em etapas: quem é referenciado (turmas, exercícios, alunos…) vem antes de quem referencia */
+  const L = c => obj.collections[c] || [];
+  const tiers = [
+    ['groups', 'exercises', 'packages'], ['students'], ['materials', 'stages', 'contracts', 'goals', 'tasks', 'notes', 'charges'],
+    [['lessons', x => !x.makeupFor]], [['lessons', x => !!x.makeupFor], 'homework', 'reports', 'recordings', 'payments'], ['plans']
+  ];
+  let n = 0;
+  for (const tier of tiers) {
+    const jobs = [];
+    for (const t of tier) { const [c, f] = Array.isArray(t) ? t : [t, null]; for (const it of L(c)) if (!f || f(it)) jobs.push([c, it]); }
+    await pool(jobs, ([c, it]) => put(c, it), 6); n += jobs.length;
+  }
   if (obj.settings && typeof obj.settings === 'object') await saveSettings({ ...defaultSettings(), ...obj.settings });
-  return jobs.length;
+  return n;
 }
 async function saveFile(filename, data) {
   if (!NS.downloads) { toast('Download indisponível neste ambiente.', 'err'); return false; }
@@ -2515,7 +2538,7 @@ VIEWS.planos = () => {
   return html`${pageHead('Weekly Study Plans', 'Anexe o PDF do plano de cada aluno na semana. O aluno abre o arquivo no painel dele.', html`${btn('Novo plano', 'plan-new', { cls: 'primary', icon: 'plus' })}`)}
   <div class="filters">${select('student', studentOptions({ blank: 'Todos os alunos', includeInactive: true }), f.student, { id: 'pl-st', a: { 'data-change': 'filter', 'data-page': 'planos', 'data-key': 'student', 'aria-label': 'Aluno' } })}
     ${select('when', [['atual', 'Atuais e futuros'], ['passados', 'Semanas passadas'], ['todos', 'Todos']], f.when, { id: 'pl-when', a: { 'data-change': 'filter', 'data-page': 'planos', 'data-key': 'when', 'aria-label': 'Período' } })}</div>
-  ${list.length ? html`<div class="cards">${limited('planos', list).map(p => { const u = p.pdfAssetId ? '/_blob/' + p.pdfAssetId : (isHttpUrl(p.pdfUrl) ? p.pdfUrl : ''); return html`<div class="card"><div class="row"><b>${stName(p.studentId)}</b> ${demoTag(p)}<span class="spacer"></span>${u ? badge('PDF anexado', 'ok') : badge('Sem PDF', 'warn')}</div>
+  ${list.length ? html`<div class="cards">${limited('planos', list).map(p => { const u = p.pdfAssetId ? fileUrl(p.pdfAssetId) : (isHttpUrl(p.pdfUrl) ? p.pdfUrl : ''); return html`<div class="card"><div class="row"><b>${stName(p.studentId)}</b> ${demoTag(p)}<span class="spacer"></span>${u ? badge('PDF anexado', 'ok') : badge('Sem PDF', 'warn')}</div>
     <div class="muted small">Semana de ${fmtDate(p.weekStart)} a ${fmtDate(p.weekEnd)}</div>
     <div class="row" style="margin-top:12px">${u ? html`<a class="btn sm primary" href="${u}" target="_blank" rel="noopener">${ico('file')} Abrir PDF${p.pdfName ? ' (' + String(p.pdfName).slice(0, 20) + ')' : ''}</a>` : ''}${NS.assets ? html`<label class="btn sm ${u ? '' : 'primary'}" style="cursor:pointer">${ico('upload')} ${u ? 'Trocar PDF' : 'Anexar PDF'}<input type="file" accept="application/pdf,image/*" data-change="plan-pdf" data-id="${p.id}" style="display:none" aria-label="Anexar PDF do plano"></label>` : ''}${btn('Editar', 'plan-edit', { cls: 'sm', icon: 'edit', data: { id: p.id } })}${iconBtn('trash', 'plan-del', 'Excluir', { id: p.id }, 'danger')}</div></div>`; })}</div>${moreBtn('planos', list)}`
     : empty(S.plans.length ? 'Nenhum plano neste filtro' : 'Nenhum plano criado', S.plans.length ? 'Mude o filtro para ver outras semanas.' : 'Clique em "Novo plano", escolha o aluno e a semana e anexe o PDF.', S.plans.length ? '' : btn('Novo plano', 'plan-new', { cls: 'primary' }))}`;
@@ -2855,7 +2878,7 @@ VIEWS.financeiro = () => {
    ============================================================ */
 
 /* =================== MATERIAIS =================== */
-const matUrl = m => m.assetId ? '/_blob/' + m.assetId : (m.link || '');
+const matUrl = m => m.assetId ? fileUrl(m.assetId) : (m.link || '');
 const matUsage = id => ({
   lessons: S.lessons.filter(l => (l.materials || []).includes(id)),
   plans: S.plans.filter(p => planActivities(p).some(a => a.materialId === id))
@@ -3076,9 +3099,10 @@ VIEWS.configuracoes = () => {
     <div class="row"><button type="submit" class="btn primary">Salvar configurações</button></div></form>
 
   <div class="card" style="margin-bottom:var(--gap)"><div class="card-h"><h2>Onde seus dados ficam</h2></div>
-    <p style="margin:0 0 8px">Os dados são gravados no banco privado da sua conta Claude, em um espaço que só você acessa (nem o dono da página enxerga o de outra pessoa). Eles continuam aí quando você fecha ou recarrega a página, e aparecem em qualquer aparelho em que você abrir o sistema com a mesma conta.</p>
-    <dl class="kv"><dt>Conta</dt><dd>${UI.userName || 'sua conta Claude'}</dd><dt>Registros</dt><dd>${total}</dd><dt>Sincronização</dt><dd>${st}</dd><dt>Último backup</dt><dd>${s.lastBackup ? fmtDT(s.lastBackup) : 'nunca'}</dd></dl>
-    <p class="hint" style="margin:10px 0 0">O acesso é pela sua conta Claude (não há senha própria neste sistema). Mesmo assim, faça um backup de vez em quando: o sistema não consegue garantir recuperação se a conta ou a página forem removidas. Não registre senhas nem dados de cartão.</p></div>
+    <p style="margin:0 0 8px">Os dados são gravados no banco de dados PostgreSQL do servidor da sua API. Eles continuam lá quando você fecha ou recarrega a página e aparecem em qualquer aparelho em que você entrar com a sua conta.</p>
+    <dl class="kv"><dt>Conta</dt><dd>${UI.userName || 'sua conta'}</dd><dt>Registros</dt><dd>${total}</dd><dt>Sincronização</dt><dd>${st}</dd><dt>Último backup</dt><dd>${s.lastBackup ? fmtDT(s.lastBackup) : 'nunca'}</dd></dl>
+    <div class="row" style="margin-top:10px">${btn('Trocar minha senha', 'pw-open', { icon: 'edit' })}${btn('Sair', 'logout')}</div>
+    <p class="hint" style="margin:10px 0 0">Faça um backup de vez em quando e confira com quem hospeda o banco como são feitas as cópias de segurança. Não registre senhas nem dados de cartão.</p></div>
 
   <div class="card" style="margin-bottom:var(--gap)"><div class="card-h"><h2>Backup e exportação</h2></div>
     <div class="row">${btn('Baixar backup completo (JSON)', 'backup-export', { cls: 'primary', icon: 'download' })}${btn('Restaurar backup…', 'backup-restore', { icon: 'download' })}</div>
@@ -3101,7 +3125,7 @@ VIEWS.configuracoes = () => {
 const lrState = l => !l.lr || !Object.values({ a: l.lr.summary, b: l.lr.vocabulary, c: l.lr.highlights, d: l.lr.homework, e: l.lr.nextSteps }).some(v => String(v || '').trim()) ? 'sem' : l.lr.published ? 'publicado' : 'rascunho';
 const STATE_LR = { sem: ['Sem relatório', 'warn'], rascunho: ['Rascunho', 'info'], publicado: ['Publicado', 'ok'] };
 const ctTypeName = c => c.typeName || labelOf(CONTRACT_TYPES, c.type);
-const fileLink = id => id ? '/_blob/' + id : '';
+const fileLink = id => fileUrl(id);
 const defaultEnd = (type, start) => ({ anual: 12, semestral: 6, trimestral: 3, mensal: 1 }[type] ? addDays(shiftMonth(start, { anual: 12, semestral: 6, trimestral: 3, mensal: 1 }[type]), -1) : '');
 
 /* colegas de turma com a mesma aula (mesma data e horário, realizada) */
@@ -3323,8 +3347,8 @@ VIEWS.portal = () => {
   return html`${pageHead('Área do Aluno', 'Cada aluno tem um painel próprio: aula com Zoom, homework estilo Classroom, cronograma, contrato, materiais, plano da semana e Student\'s Guide. A área da professora é só sua.', btn("Guia padrão", 'guide-edit', { icon: 'key', data: { id: '' } }))}
   ${shareCard()}
   <div class="card" style="margin-bottom:var(--gap)"><div class="card-h"><h2>Como liberar o acesso de um aluno</h2></div>
-    <ol class="small" style="margin:0;padding-left:20px;display:grid;gap:6px"><li>No menu <b>Compartilhar</b> desta página, convide o e-mail do aluno (a mesma conta de e-mail com que ele entra no Claude). Dê a permissão de <b>Contribuidor</b> ou equivalente, que permite entregar homework; só &quot;ver&quot; deixa o aluno sem poder entregar. Nunca dê permissão de edição. <b>O aluno precisa ter conta no Claude</b> para abrir o link.</li><li>Depois que ele aceitar, clique em <b>Vincular conta</b> na linha dele, abaixo, e escolha o nome dele na busca.</li><li>Cole o <b>link do Zoom</b> e confira com <b>Prévia</b>. Pronto: o aluno abre o mesmo link e cai direto no painel dele.</li><li><b>Aluno menor de idade:</b> marque "menor de idade" no cadastro dele, convide o responsável do mesmo jeito e use <b>Responsáveis</b> na linha do aluno. O responsável abre o mesmo link e vê, só para leitura, o painel dos filhos ligados à conta dele.</li></ol>
-    <p class="small muted" style="margin:10px 0 0">Cada aluno só consegue ler o próprio painel, e o painel do aluno mostra apenas o que você publica: nunca financeiro, notas internas ou dados de outros alunos. O painel dos responsáveis é igual, mas inclui o financeiro informativo (você pode desmarcar por aluno). O arquivo do contrato é um anexo com endereço longo e não adivinhável: quem receber esse endereço consegue abri-lo, então não o repasse.</p>
+    <ol class="small" style="margin:0;padding-left:20px;display:grid;gap:6px"><li>Clique em <b>Vincular conta</b> na linha do aluno, abaixo, e preencha <b>Criar acesso</b> (nome, e-mail e uma senha provisória com 8 ou mais caracteres). Passe ao aluno o e-mail, a senha e o link acima.</li><li>O aluno entra pelo link e vê só o painel dele. Dentro do painel ele pode trocar a senha. Se esquecer, use <b>Redefinir senha</b> na mesma janela.</li><li>Cole o <b>link do Zoom</b> e confira com <b>Prévia</b>.</li><li><b>Aluno menor de idade:</b> marque "menor de idade" no cadastro dele e use <b>Responsáveis</b> na linha do aluno para criar o acesso do responsável. O responsável entra pelo mesmo link e vê, só para leitura, o painel dos filhos ligados à conta dele.</li></ol>
+    <p class="small muted" style="margin:10px 0 0">Cada aluno só consegue ler o próprio painel, e o painel do aluno mostra apenas o que você publica: nunca financeiro, notas internas ou dados de outros alunos. O painel dos responsáveis é igual, mas inclui o financeiro informativo (você pode desmarcar por aluno). Os arquivos só abrem para quem está com a sessão aberta e tem permissão (a professora, o aluno dono do envio ou quem o painel publicado cita).</p>
     ${S.portalError ? html`<p class="small" style="color:var(--bad);margin:8px 0 0">Última publicação falhou: ${S.portalError}</p>` : ''}</div>
   ${list.length ? html`<div class="card"><div class="tablewrap"><table class="tbl" style="min-width:1100px"><thead><tr><th>Aluno</th><th>Conta do aluno</th><th>Zoom</th><th>Publicado</th><th></th></tr></thead><tbody>
     ${list.map(s => html`<tr><td><b>${s.name}</b> ${demoTag(s)}${s.minor ? badge('menor de idade', 'acc') : ''}${s.groupId && M.groups.get(s.groupId) ? html`<div class="small muted">Turma ${M.groups.get(s.groupId).name}</div>` : ''}</td><td>${s.accountId ? badge('Vinculada', 'ok') : badge('Não vinculada', 'warn')}</td><td>${isHttpUrl(s.zoomUrl) ? badge('Configurado', 'ok') : html`<span class="muted">—</span>`}</td><td class="small nowrap">${s.accountId ? (S.portalAt[s.id] ? fmtDT(S.portalAt[s.id]) : html`<span class="muted">nesta sessão: ainda não</span>`) : '—'}</td>
@@ -3348,22 +3372,30 @@ ACTIONS['acct-unlink'] = async d => {
 };
 ACTIONS['acct-link'] = d => {
   const s = M.students.get(d.id); if (!s) return;
-  openModal({ title: 'Vincular conta do aluno', narrow: true, body: html`<p class="muted small" style="margin:0">${s.name}</p>
-    <label class="fld"><span>Buscar pelo nome da conta</span><input id="acct-q" type="search" autocomplete="off" placeholder="Digite o nome… (vazio mostra quem tem acesso)" data-input="acct-search" data-student="${d.id}"></label>
-    <div id="acct-res" class="list" aria-live="polite"><p class="muted small" style="margin:0">Digite para buscar. A pessoa precisa já ter sido convidada em Compartilhar.</p></div>` });
+  openModal({ title: 'Conta do aluno', narrow: true, body: html`<p class="muted small" style="margin:0">${s.name}</p>
+    ${s.accountId ? html`<div class="card" style="padding:12px"><div class="small"><b>Conta vinculada:</b> <span id="acct-cur">…</span></div>
+      <form data-form="acct-reset" class="row" style="margin-top:8px" data-id="${s.accountId}"><input name="password" type="password" minlength="8" required autocomplete="new-password" placeholder="Nova senha (8+ caracteres)" aria-label="Nova senha" style="flex:1;min-width:160px"><button type="submit" class="btn sm">Redefinir senha</button></form></div>` : ''}
+    <form data-form="acct-create" class="stack" data-student="${d.id}" data-role="aluno"><b class="small">Criar acesso novo</b>
+      <label class="fld"><span>Nome</span><input name="name" required maxlength="120" value="${s.name || ''}"></label>
+      <label class="fld"><span>E-mail</span><input name="email" type="email" required autocomplete="off"></label>
+      <label class="fld"><span>Senha provisória (8+ caracteres)</span><input name="password" type="text" minlength="8" required autocomplete="off"></label>
+      <button type="submit" class="btn primary">Criar acesso e vincular</button></form>
+    <label class="fld"><span>Ou vincular uma conta que já existe</span><input id="acct-q" type="search" autocomplete="off" placeholder="Digite o nome ou e-mail…" data-input="acct-search" data-student="${d.id}"></label>
+    <div id="acct-res" class="list" aria-live="polite"></div>` });
+  if (s.accountId && NS.user && NS.user.profiles) NS.user.profiles([s.accountId]).then(p => { const e = $('#acct-cur'); if (e) e.textContent = (p && p[s.accountId] && p[s.accountId].name) || 'conta sem nome'; }).catch(() => { });
   INPUTS['acct-search']('', $('#acct-q'));
 };
 let acctSeq = 0;
 INPUTS['acct-search'] = async (v, t) => {
   const seq = ++acctSeq, box = $('#acct-res'); if (!box || !NS.user || !NS.user.search) return;
-  let hits = []; try { hits = await NS.user.search(String(v || '')); } catch (e) { hits = []; }
+  let hits = []; try { hits = await NS.user.search(String(v || ''), 'aluno'); } catch (e) { hits = []; }
   if (seq !== acctSeq || !$('#acct-res')) return;
   hits = hits.filter(h => h.id && h.id !== UID);
   const sid = t.dataset.student;
   box.innerHTML = hits.length ? hits.slice(0, 20).map(h => {
     const other = S.students.find(x => x.accountId === h.id && x.id !== sid);
     return `<button type="button" class="item" data-act="acct-pick" data-id="${esc(h.id)}" data-student="${esc(sid)}"><img src="${esc(h.avatarUrl)}" alt="" width="32" height="32" style="border-radius:50%"><div class="grow"><div class="t">${esc(h.name || 'Conta sem nome')}</div>${other ? `<div class="small muted">já vinculada a ${esc(other.name)}</div>` : ''}${h.guest ? '<div class="small muted">convidado</div>' : ''}</div></button>`;
-  }).join('') : '<p class="muted small" style="margin:0">Ninguém encontrado. Confira se o aluno aceitou o convite em Compartilhar e tente o nome como aparece na conta dele.</p>';
+  }).join('') : '<p class="muted small" style="margin:0">Nenhuma conta de aluno encontrada. Crie o acesso acima.</p>';
 };
 ACTIONS['acct-pick'] = async d => {
   const s = M.students.get(d.student); if (!s) return;
@@ -3379,6 +3411,24 @@ ACTIONS['acct-pick'] = async d => {
 };
 
 
+/* ---------- criar / redefinir contas e trocar a própria senha ---------- */
+FORMS['acct-create'] = async (v, f, ds) => {
+  if (!NS.user || !NS.user.create) { toast('Criar contas não está disponível aqui.', 'err'); return; }
+  const role = ds.role === 'responsavel' ? 'responsavel' : 'aluno';
+  const u = await NS.user.create({ name: String(v.name || '').trim(), email: String(v.email || '').trim(), password: String(v.password || ''), role });
+  toast('Conta criada: ' + u.email + '. Anote a senha e passe para a pessoa.', 'ok');
+  await (role === 'aluno' ? ACTIONS['acct-pick']({ id: u.id, student: ds.student }) : ACTIONS['guard-pick']({ id: u.id, student: ds.student }));
+};
+FORMS['acct-reset'] = async (v, f, ds) => {
+  await NS.user.resetPassword(ds.id, String(v.password || ''));
+  f.reset(); toast('Senha redefinida. Passe a nova senha para a pessoa.', 'ok');
+};
+ACTIONS['pw-open'] = () => openModal({ title: 'Trocar minha senha', narrow: true, body: html`<form data-form="pw-change" class="stack">
+  <label class="fld"><span>Senha atual</span><input name="current" type="password" required autocomplete="current-password"></label>
+  <label class="fld"><span>Nova senha (8+ caracteres)</span><input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
+  <button type="submit" class="btn primary">Salvar nova senha</button></form>` });
+FORMS['pw-change'] = async v => { await NS.user.changePassword(String(v.current || ''), String(v.password || '')); closeAllModals(); toast('Senha alterada.', 'ok'); };
+
 ;
 /* ============================================================
    pages7.js — homework estilo Google Classroom (entrega, correção, devolução),
@@ -3388,10 +3438,10 @@ ACTIONS['acct-pick'] = async d => {
 /* só apaga o arquivo se nenhum outro registro (outro aluno da turma, por exemplo) ainda o usa */
 const assetUses = id => [['materials', 'assetId'], ['recordings', 'assetId'], ['plans', 'pdfAssetId'], ['homework', 'attachId'], ['contracts', 'assetId'], ['students', 'bannerImageId']].reduce((n, [c, k]) => n + S[c].filter(x => x[k] === id).length, 0);
 async function releaseAsset(id) { if (!id || !NS.assets || assetUses(id) > 1) return; try { await NS.assets.delete(id); } catch (e) { /* já removido */ } }
-const APP_URL = 'https://claude.ai/artifact/1ZCTaRFEXJiKuhQTJw2kFJ';
+const APP_URL = (window.APP_CONFIG && window.APP_CONFIG.siteUrl) || (location.origin + location.pathname);
 const stamp = () => new Date().toISOString();
 const fmtStamp = s => { try { return s ? new Date(s).toLocaleString(loc(), { dateStyle: 'short', timeStyle: 'short' }) : ''; } catch (e) { return ''; } };
-const blobUrl = id => id ? '/_blob/' + id : '';
+const blobUrl = id => fileUrl(id);
 async function uploadFile(file) {
   if (!NS.assets) throw new Error('O envio de arquivos não está disponível para esta conta.');
   if (file.size > 20 * 1024 * 1024) throw new Error('O arquivo passa de 20 MB.');
@@ -3691,7 +3741,7 @@ function portalPage() {
   if (S.portal && S.portal.guardian) return guardianPage();
   const d = S.portal, first = d && d.name ? d.name.split(' ')[0] : '';
   const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-  return html`<div class="pt-wrap"><header class="pt-head"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div class="grow"><div class="pt-brand">${BRAND.name}</div><small>${BRAND.sub}</small></div><button type="button" class="icon-btn" data-act="toggle-theme" aria-label="Alternar tema claro e escuro">${ico(dark ? 'sun' : 'moon')}</button></header>
+  return html`<div class="pt-wrap"><header class="pt-head"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div class="grow"><div class="pt-brand">${BRAND.name}</div><small>${BRAND.sub}</small></div><button type="button" class="icon-btn" data-act="toggle-theme" aria-label="Alternar tema claro e escuro">${ico(dark ? 'sun' : 'moon')}</button><button type="button" class="btn sm" data-act="pw-open">Senha</button><button type="button" class="btn sm" data-act="logout">Sair</button></header>
   <div class="pt-hello"><h1>${d ? `Olá, ${first}!` : 'Bem-vindo(a)!'}</h1>${d && d.level ? html`<p>Seu nível: ${badge(d.level, 'acc')}</p>` : ''}${S.syncError ? html`<p class="small" style="color:var(--bad)">Sem conexão com o servidor. Os dados abaixo podem estar desatualizados.</p>` : ''}${d && d.updatedAt ? html`<p class="tiny muted">Atualizado em ${fmtDT(d.updatedAt)}</p>` : ''}</div>
   ${portalView(d)}<footer class="pt-foot">${BRAND.name} · ${BRAND.sub}</footer></div>`;
 }
@@ -3735,16 +3785,7 @@ ACTIONS['ct-file-rm'] = async d => {
 };
 
 /* =================== MODELOS NA BIBLIOTECA =================== */
-const MODEL_DOCS = [
-  { title: 'Weekly Study Plan (modelo)', desc: 'Modelo do plano semanal: cards por atividade e Daily Planner. Use para montar o PDF de cada aluno.', assetId: '1d7ebd62c3036f90fdbc80730654b42b', fileName: 'Modelo-Weekly-Study-Plan.pdf' },
-  { title: 'Banner Google Classroom (modelo)', desc: 'Banner horizontal com nome do curso e do aluno, para o topo do Classroom.', assetId: '94b08642a3751265c84591c487b6d3ed', fileName: 'Modelo-Banner-Google-Classroom.pdf' },
-  { title: "Student's Guide (exemplo: Gustavo)", desc: "Guia do aluno usado como base da aba Student\'s Guide. Contém dados de um aluno real: não compartilhe.", assetId: '18b9138963ee198b97eaf9c9964e249b', fileName: 'Students-Guide-Gustavo.pdf' },
-  { title: 'Report Card (modelo Evolve Level 2)', desc: 'Student Progress Report em português, com blocos de evolução.', assetId: '3be3c9523186d7013b8c9bc66e303755', fileName: 'Report-Card-E2.pdf' },
-  { title: 'Holidays Challenge (modelo)', desc: 'Desafio de férias com quatro semanas e tarefas de listening, reading, writing e speaking.', assetId: 'dafc556792787d8c5782d2915864652e', fileName: 'Modelo-Holidays-Challenge.pdf' },
-  { title: 'Datas especiais (modelo)', desc: 'Cartões de Natal, Ano Novo, Thanksgiving e férias.', assetId: '898667e11c8750239d7c136abe65ee53', fileName: 'Modelo-Datas-especiais.pdf' },
-  { title: 'Birthday (modelo)', desc: 'Cartão de aniversário para o aluno.', assetId: '125d1b9bd9c58ceaaeb5bae1aa36b35d', fileName: 'Modelo-Birthday.pdf' },
-  { title: 'Back to school (modelo)', desc: 'Slides de volta às aulas, boas-vindas e despedida.', assetId: '3f32e94c2cce054bae4d1a6f017d13ae', fileName: 'Modelo-Back-to-school.pdf' }
-];
+const MODEL_DOCS = []; // modelos de PDF não acompanham este site; a Biblioteca começa vazia
 async function seedModels() {
   if (window.__NOSEED || S.seeding || S.settings.modelsSeeded || !MODEL_DOCS.length || S.mode !== 'professora') return;
   S.seeding = true;
@@ -3758,7 +3799,7 @@ async function seedModels() {
 ACTIONS['copy-link'] = async () => { try { await navigator.clipboard.writeText(APP_URL); toast('Link copiado.', 'ok'); } catch (e) { toast('Não foi possível copiar sozinho. Selecione e copie o link na caixa.', 'err'); const i = $('#share-url'); if (i) { i.focus(); i.select(); } } };
 const shareCard = () => html`<div class="card" style="margin-bottom:var(--gap)"><div class="card-h"><h2>${ico('link')} Link para o aluno</h2></div>
   <div class="row"><input id="share-url" type="text" readonly value="${APP_URL}" aria-label="Link do sistema" style="flex:1;min-width:200px">${btn('Copiar link', 'copy-link', { cls: 'primary', icon: 'copy' })}</div>
-  <p class="small muted" style="margin:10px 0 0">É o mesmo link do sistema: quem entra com a conta vinculada cai direto no painel dele (slides e materiais, homework, plano semanal em PDF, contrato, cadastro e Student's Guide). Só o seu e-mail abre a área da professora. O aluno precisa ser convidado em <b>Compartilhar</b> com permissão de <b>colaborar</b> (para poder entregar homework), sem permissão de editar.</p></div>`;
+  <p class="small muted" style="margin:10px 0 0">É o mesmo link do sistema: quem entra com a conta vinculada cai direto no painel dele (slides e materiais, homework, plano semanal em PDF, contrato, cadastro e Student's Guide). Só a sua conta abre a área da professora. O aluno entra com o e-mail e a senha que você criar em <b>Vincular conta</b>.</p></div>`;
 
 /* =================== AVISO DE ENTREGAS (sino) =================== */
 const unseenDeliveries = () => S.homework.filter(h => h.status === 'pendente_correcao' && h.subAt && (!h.seenAt || h.seenAt < h.subAt)).sort((a, b) => cmpStr(b.subAt, a.subAt));
@@ -3947,7 +3988,7 @@ function guardianView(doc) {
 function guardianPage() {
   const d = S.portal, first = String(UI.userName || '').split(' ')[0];
   const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-  return html`<div class="pt-wrap"><header class="pt-head"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div class="grow"><div class="pt-brand">${BRAND.name}</div><small>${BRAND.sub}</small></div><button type="button" class="icon-btn" data-act="toggle-theme" aria-label="Alternar tema claro e escuro">${ico(dark ? 'sun' : 'moon')}</button></header>
+  return html`<div class="pt-wrap"><header class="pt-head"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div class="grow"><div class="pt-brand">${BRAND.name}</div><small>${BRAND.sub}</small></div><button type="button" class="icon-btn" data-act="toggle-theme" aria-label="Alternar tema claro e escuro">${ico(dark ? 'sun' : 'moon')}</button><button type="button" class="btn sm" data-act="pw-open">Senha</button><button type="button" class="btn sm" data-act="logout">Sair</button></header>
   <div class="pt-hello"><h1>Olá${first ? ', ' + first : ''}!</h1><p class="muted">Painel dos responsáveis · somente leitura</p>${S.syncError ? html`<p class="small" style="color:var(--bad)">Sem conexão com o servidor. Os dados abaixo podem estar desatualizados.</p>` : ''}${d && d.updatedAt ? html`<p class="tiny muted">Atualizado em ${fmtDT(d.updatedAt)}</p>` : ''}</div>
   ${guardianView(d)}<footer class="pt-foot">${BRAND.name} · ${BRAND.sub}</footer></div>`;
 }
@@ -3967,11 +4008,16 @@ async function renderGuardList(sid) {
 function openGuardians(sid) {
   const s = M.students.get(sid); if (!s) return;
   openModal({ title: 'Responsáveis de ' + s.name, body: html`<div class="stack">
-    <p class="small muted" style="margin:0">O responsável abre o mesmo link do painel com a própria conta e vê, somente para leitura: próxima aula e Zoom, calendário, contrato, cadastro, relatórios, homework com notas e (se marcado) financeiro. Uma conta pode acompanhar vários alunos.</p>
+    <p class="small muted" style="margin:0">O responsável abre o mesmo link do painel com o próprio e-mail e senha e vê, somente para leitura: próxima aula e Zoom, calendário, contrato, cadastro, relatórios, homework com notas e (se marcado) financeiro. Uma conta pode acompanhar vários alunos.</p>
     <div id="guard-list" class="list" aria-live="polite"></div>
     <label class="chk"><input type="checkbox" data-change="guard-fin" data-id="${sid}"${s.guardFin !== false ? raw(' checked') : ''}> Mostrar o financeiro (mensalidade e situação das cobranças, só informativo)</label>
-    <label class="fld"><span>Adicionar responsável</span><input id="guard-q" type="search" autocomplete="off" placeholder="Digite o nome da conta…" data-input="guard-search" data-student="${sid}"></label>
-    <div id="guard-res" class="list" aria-live="polite"><p class="muted small" style="margin:0">Antes, convide o responsável em Compartilhar (Visualizador basta; ele precisa ter conta no Claude) e espere ele aceitar.</p></div></div>` });
+    <form data-form="acct-create" class="stack" data-student="${sid}" data-role="responsavel"><b class="small">Criar acesso de responsável</b>
+      <label class="fld"><span>Nome</span><input name="name" required maxlength="120"></label>
+      <label class="fld"><span>E-mail</span><input name="email" type="email" required autocomplete="off"></label>
+      <label class="fld"><span>Senha provisória (8+ caracteres)</span><input name="password" type="text" minlength="8" required autocomplete="off"></label>
+      <button type="submit" class="btn primary">Criar acesso e ligar</button></form>
+    <label class="fld"><span>Ou ligar uma conta de responsável que já existe</span><input id="guard-q" type="search" autocomplete="off" placeholder="Digite o nome ou e-mail…" data-input="guard-search" data-student="${sid}"></label>
+    <div id="guard-res" class="list" aria-live="polite"></div></div>` });
   renderGuardList(sid);
 }
 ACTIONS['guard-open'] = d => openGuardians(d.id);
@@ -3979,7 +4025,7 @@ CHANGES['guard-fin'] = async (v, t) => { const s = M.students.get(t.dataset.id);
 let guardSeq = 0;
 INPUTS['guard-search'] = async (v, t) => {
   const seq = ++guardSeq, box = $('#guard-res'); if (!box || !NS.user || !NS.user.search) return;
-  let hits = []; try { hits = await NS.user.search(String(v || '')); } catch (e) { hits = []; }
+  let hits = []; try { hits = await NS.user.search(String(v || ''), 'responsavel'); } catch (e) { hits = []; }
   if (seq !== guardSeq || !$('#guard-res')) return;
   const sid = t.dataset.student, s = M.students.get(sid), have = (s && s.guardians) || [];
   hits = hits.filter(h => h.id && h.id !== UID && !have.includes(h.id));
@@ -4200,28 +4246,250 @@ ACTIONS['demo-remove'] = async () => {
 
 ;
 /* ============================================================
+   api.js — comunicação com a API (Node.js + PostgreSQL)
+   Oferece ao restante do site a mesma interface de dados que ele usa
+   (user, db, downloads, assets), mas falando com a API por HTTPS.
+   O endereço da API vem de config.js (window.APP_CONFIG.apiUrl).
+   ============================================================ */
+const API = (() => {
+  const cfg = window.APP_CONFIG || {};
+  const base = String(cfg.apiUrl || '').trim().replace(/\/+$/, '');
+  const TK = 'eth_token', POLL_MS = Math.max(5000, Number(cfg.pollSeconds || 20) * 1000);
+  let token = null, me = null;
+  try { token = localStorage.getItem(TK) || null; } catch (e) { token = null; }
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const mkErr = (msg, code, status) => { const e = new Error(msg); e.code = code; e.status = status; return e; };
+  const AVATAR = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="16" fill="#c9c4d4"/></svg>');
+
+  function setToken(t) { token = t; try { if (t) localStorage.setItem(TK, t); else localStorage.removeItem(TK); } catch (e) { /* sem armazenamento: vale só nesta aba */ } }
+  function expired() {
+    setToken(null);
+    try { sessionStorage.setItem('eth_msg', 'Sua sessão terminou. Entre novamente.'); } catch (e) { /* ignora */ }
+    location.reload();
+  }
+  async function call(method, path, body, opt) {
+    if (!base) throw mkErr('A API ainda não foi configurada neste site.', 'unavailable', 0);
+    const h = {}; if (token && !(opt && opt.anon)) h.Authorization = 'Bearer ' + token;
+    let payload;
+    if (typeof Blob !== 'undefined' && body instanceof Blob) { payload = body; h['Content-Type'] = body.type || 'application/octet-stream'; }
+    else if (body !== undefined) { payload = JSON.stringify(body); h['Content-Type'] = 'application/json'; }
+    let r;
+    try { r = await fetch(base + path, { method, headers: h, body: payload }); } catch (e) { throw mkErr('Sem conexão com o servidor. Verifique a internet e tente de novo.', 'unavailable', 0); }
+    let data = null; try { data = await r.json(); } catch (e) { data = null; }
+    if (!r.ok) {
+      if (r.status === 401 && token && !(opt && opt.anon)) { expired(); throw mkErr('Sua sessão terminou.', 'revoked', 401); }
+      throw mkErr((data && data.error) || ('Erro ' + r.status + ' no servidor.'), r.status >= 500 ? 'unavailable' : 'api', r.status);
+    }
+    return data;
+  }
+
+  /* ---------- sessão ---------- */
+  const configured = () => !!base;
+  const hasToken = () => !!token;
+  async function login(email, password) {
+    const r = await call('POST', '/auth/login', { email, password }, { anon: true });
+    setToken(r.token); me = r.user; return me;
+  }
+  async function loadMe() { const r = await call('GET', '/auth/me'); me = r.user; return me; }
+  function logout() { setToken(null); me = null; location.reload(); }
+  const fileUrl = id => base + '/files/' + encodeURIComponent(id) + '?token=' + encodeURIComponent(token || '');
+
+  /* ---------- cache e sincronização por consulta periódica ---------- */
+  const cache = { sync: null, bundle: null };
+  const watchers = new Set();
+  let epoch = 0, writing = 0, timer = 0, polling = false;
+
+  const snapOf = (docs, exists) => ({ exists, docs, metadata: { fromCache: false, hasPendingWrites: false } });
+  const docSnap = (id, d) => ({ exists: d != null, id, data: () => (d == null ? undefined : clone(d)), metadata: { fromCache: false, hasPendingWrites: false } });
+  const stripId = r => { const o = { ...r }; delete o.id; return o; };
+
+  /* converte um caminho "estilo documento" no que está em cache */
+  function readDoc(path) {
+    const p = path.split('/');
+    if (p[0] === 'data' && p[1] === 'users' && p.length === 4 && p[3] === 'hub') {
+      const s = cache.sync && cache.sync.settings;
+      return docSnap('hub', s && s.exists ? { settings: s.settings, updatedAt: 0 } : null);
+    }
+    if (p[0] === 'portal' && p.length === 2) return docSnap(p[1], cache.bundle ? cache.bundle.portal : null);
+    if (p[0] === 'hwsub' && p.length === 2) return docSnap(p[1], cache.bundle ? cache.bundle.submissions : null);
+    if (p[0] === 'hwret' && p.length === 2) return docSnap(p[1], cache.bundle ? cache.bundle.returns : null);
+    return docSnap(p[p.length - 1], null);
+  }
+  function readCol(path) {
+    const p = path.split('/');
+    if (p[0] === 'data' && p[1] === 'users' && p.length === 5 && p[3] === 'hub') {
+      const list = (cache.sync && cache.sync.collections && cache.sync.collections[p[4]]) || [];
+      return snapOf(list.map(r => ({ id: r.id, data: () => clone(stripId(r)) })), true);
+    }
+    if (p[0] === 'hwsub' && p.length === 1) {
+      const subs = (cache.sync && cache.sync.submissions) || {};
+      return snapOf(Object.keys(subs).map(id => ({ id, data: () => clone(subs[id]) })), true);
+    }
+    return snapOf([], true);
+  }
+  const sig = s => JSON.stringify(s.docs ? s.docs.map(d => [d.id, d.data()]) : [s.exists, s.data && s.data()]);
+
+  function deliver() {
+    for (const w of [...watchers]) {
+      if (!w.ready()) continue;
+      const s = w.read(), k = sig(s);
+      if (k !== w.last) { w.last = k; try { w.cb(s); } catch (e) { console.error(e); } }
+    }
+  }
+  const needs = () => (me && me.role === 'professora') ? 'sync' : 'bundle';
+  async function refresh() {
+    if (polling || !me) return; polling = true;
+    const ep = epoch, kind = needs();
+    try {
+      const d = kind === 'sync' ? await call('GET', '/sync') : await call('GET', '/me/bundle');
+      if (ep === epoch && writing === 0) { cache[kind] = d; }
+      else if (!cache[kind]) cache[kind] = d;
+      for (const w of watchers) if (w.failed) { w.failed = false; w.last = null; }
+      deliver();
+    } catch (e) {
+      for (const w of [...watchers]) if (w.onErr) { w.failed = true; try { w.onErr(e); } catch (x) { console.error(x); } }
+    } finally { polling = false; }
+  }
+  function startPolling() {
+    if (timer) return;
+    timer = setInterval(() => { if (!document.hidden) refresh(); }, POLL_MS);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+    window.addEventListener('online', refresh);
+  }
+  function watch(readFn, readyFn, cb, onErr) {
+    const w = { read: readFn, ready: readyFn, cb, onErr, last: null };
+    watchers.add(w); startPolling();
+    if (readyFn()) setTimeout(deliver, 0); else setTimeout(refresh, 0);
+    return () => watchers.delete(w);
+  }
+  const ready = () => !!cache[needs()];
+  async function write(fn) {
+    writing++; epoch++;
+    try { return await fn(); } finally { writing--; epoch++; }
+  }
+
+  /* ---------- "banco de dados" ---------- */
+  function docRef(path) {
+    const p = path.split('/'), id = p[p.length - 1];
+    return {
+      path, id,
+      collection: n => colRef(path + '/' + n),
+      async get() {
+        if (p[0] === 'hwret' && me && me.role === 'professora') { const r = await call('GET', '/returns/' + encodeURIComponent(id)); return docSnap(id, r.doc || null); }
+        if (!ready()) await refresh();
+        return readDoc(path);
+      },
+      async set(d) {
+        await write(async () => {
+          if (p[0] === 'data' && p.length === 4) {
+            await call('PUT', '/settings', d.settings || {});
+            if (cache.sync) cache.sync.settings = { exists: true, settings: clone(d.settings || {}) };
+          } else if (p[0] === 'data' && p.length === 6) {
+            await call('PUT', '/' + p[4] + '/' + encodeURIComponent(id), d);
+            const list = (cache.sync && cache.sync.collections && cache.sync.collections[p[4]]);
+            if (list) { const row = { id, ...clone(d) }, i = list.findIndex(x => x.id === id); if (i >= 0) list[i] = row; else list.push(row); }
+          } else if (p[0] === 'portal') {
+            await call('PUT', '/portal/' + encodeURIComponent(id), d);
+          } else if (p[0] === 'hwsub') {
+            await call('PUT', '/me/submissions', { items: d.items || {} });
+            if (cache.bundle) cache.bundle.submissions = clone(d);
+          } else if (p[0] === 'hwret') {
+            await call('PUT', '/returns/' + encodeURIComponent(id), { items: d.items || {} });
+          } else throw mkErr('Caminho de dados desconhecido: ' + path, 'api', 0);
+        });
+        deliver();
+      },
+      async delete() {
+        await write(async () => {
+          if (p[0] === 'data' && p.length === 6) {
+            await call('DELETE', '/' + p[4] + '/' + encodeURIComponent(id));
+            const c = cache.sync && cache.sync.collections; if (c && c[p[4]]) c[p[4]] = c[p[4]].filter(x => x.id !== id);
+          } else if (p[0] === 'portal') {
+            await call('DELETE', '/portal/' + encodeURIComponent(id));
+          } else throw mkErr('Não é possível excluir este item.', 'api', 0);
+        });
+        deliver();
+      },
+      onSnapshot(cb, onErr) { return watch(() => readDoc(path), ready, cb, onErr); }
+    };
+  }
+  function colRef(path) {
+    return {
+      path, doc: id => docRef(path + '/' + id),
+      onSnapshot(cb, onErr) { return watch(() => readCol(path), ready, cb, onErr); }
+    };
+  }
+
+  /* ---------- contas ---------- */
+  const user = {
+    id: async () => me && me.id,
+    me: async () => ({ name: (me && (me.name || me.email)) || '' }),
+    isOwner: async () => !!me && me.role === 'professora',
+    role: () => (me && me.role) || '',
+    search: async (q, role) => {
+      const r = await call('GET', '/users/search?q=' + encodeURIComponent(q || ''));
+      return r.users.filter(u => !role || u.role === role).map(u => ({ id: u.id, name: u.name ? u.name + ' (' + u.email + ')' : u.email, email: u.email, role: u.role, avatarUrl: AVATAR }));
+    },
+    profiles: async ids => (await call('POST', '/users/profiles', { ids })).profiles,
+    create: async o => (await call('POST', '/users', o)).user,
+    resetPassword: async (id, password) => { await call('POST', '/users/' + encodeURIComponent(id) + '/password', { password }); },
+    changePassword: async (current, password) => { await call('POST', '/auth/password', { current, password }); }
+  };
+
+  /* ---------- arquivos e downloads ---------- */
+  const assets = {
+    upload: async file => {
+      const r = await call('POST', '/files?name=' + encodeURIComponent(file.name || 'arquivo'), file);
+      return { id: r.id, url: fileUrl(r.id), sizeBytes: r.sizeBytes, contentType: r.contentType };
+    },
+    delete: async id => { try { await call('DELETE', '/files/' + encodeURIComponent(id)); } catch (e) { if (e.status !== 404 && e.status !== 403) throw e; } }
+  };
+  const downloads = {
+    save: async ({ filename, data }) => {
+      const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }
+  };
+
+  const host = { use: async n => ({ user, db: { doc: docRef, collection: colRef }, assets, downloads })[n] || null, fileUrl };
+  return { host, configured, hasToken, login, loadMe, logout, call, user, health: () => call('GET', '/health', undefined, { anon: true }), me: () => me };
+})();
+
+;
+/* ============================================================
    main.js — inicialização
    ============================================================ */
-(async function boot() {
-  applyPrefs();
-  render();
-  const c = window.claude;
-  if (!c || typeof c.use !== 'function') { S.env = { ok: false, reason: 'none' }; render(); return; }
-  const get = async n => { try { return await c.use(n); } catch (e) { return null; } };
+async function startApp(host) {
+  const get = async n => { try { return await host.use(n); } catch (e) { return null; } };
   const [user, db, downloads, assets] = await Promise.all([get('user'), get('db'), get('downloads'), get('assets')]);
-  NS.user = user; NS.db = db; NS.downloads = downloads; NS.assets = assets;
+  NS.user = user; NS.db = db; NS.downloads = downloads; NS.assets = assets; NS.fileUrl = host.fileUrl || null;
   if (!user || !db) { S.env = { ok: false, reason: 'none' }; render(); return; }
   try {
     UID = await user.id();
     if (!UID) throw new Error('sem id');
     try { const me = await user.me(); UI.userName = (me && me.name) || ''; } catch (e) { /* nome é opcional */ }
   } catch (e) { S.env = { ok: false, reason: 'none' }; render(); return; }
+  S.env = { ok: true };
   let owner = false;
   try { owner = await user.isOwner(); } catch (e) { owner = false; }
   if (!owner) { S.mode = 'aluno'; startStudentSync(); render(); return; }
   startSync();
   startSubsSync();
   render();
+}
+(async function boot() {
+  applyPrefs();
+  if (window.__TEST_HOST) { render(); return startApp(window.__TEST_HOST); }
+  if (!API.configured()) { S.env = { ok: false, reason: 'noapi' }; render(); return; }
+  if (!API.hasToken()) { S.env = { ok: false, reason: 'login' }; render(); return; }
+  render();
+  try { await API.loadMe(); } catch (e) {
+    if (e.code === 'revoked') return;
+    S.env = { ok: false, reason: e.code === 'unavailable' ? 'offline' : 'login', detail: e.message }; render(); return;
+  }
+  await startApp(API.host);
 })();
 
 </script>

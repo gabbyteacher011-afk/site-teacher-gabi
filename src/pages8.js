@@ -44,7 +44,7 @@ function guardianView(doc) {
 function guardianPage() {
   const d = S.portal, first = String(UI.userName || '').split(' ')[0];
   const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-  return html`<div class="pt-wrap"><header class="pt-head"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div class="grow"><div class="pt-brand">${BRAND.name}</div><small>${BRAND.sub}</small></div><button type="button" class="icon-btn" data-act="toggle-theme" aria-label="Alternar tema claro e escuro">${ico(dark ? 'sun' : 'moon')}</button></header>
+  return html`<div class="pt-wrap"><header class="pt-head"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div class="grow"><div class="pt-brand">${BRAND.name}</div><small>${BRAND.sub}</small></div><button type="button" class="icon-btn" data-act="toggle-theme" aria-label="Alternar tema claro e escuro">${ico(dark ? 'sun' : 'moon')}</button><button type="button" class="btn sm" data-act="pw-open">Senha</button><button type="button" class="btn sm" data-act="logout">Sair</button></header>
   <div class="pt-hello"><h1>Olá${first ? ', ' + first : ''}!</h1><p class="muted">Painel dos responsáveis · somente leitura</p>${S.syncError ? html`<p class="small" style="color:var(--bad)">Sem conexão com o servidor. Os dados abaixo podem estar desatualizados.</p>` : ''}${d && d.updatedAt ? html`<p class="tiny muted">Atualizado em ${fmtDT(d.updatedAt)}</p>` : ''}</div>
   ${guardianView(d)}<footer class="pt-foot">${BRAND.name} · ${BRAND.sub}</footer></div>`;
 }
@@ -64,11 +64,16 @@ async function renderGuardList(sid) {
 function openGuardians(sid) {
   const s = M.students.get(sid); if (!s) return;
   openModal({ title: 'Responsáveis de ' + s.name, body: html`<div class="stack">
-    <p class="small muted" style="margin:0">O responsável abre o mesmo link do painel com a própria conta e vê, somente para leitura: próxima aula e Zoom, calendário, contrato, cadastro, relatórios, homework com notas e (se marcado) financeiro. Uma conta pode acompanhar vários alunos.</p>
+    <p class="small muted" style="margin:0">O responsável abre o mesmo link do painel com o próprio e-mail e senha e vê, somente para leitura: próxima aula e Zoom, calendário, contrato, cadastro, relatórios, homework com notas e (se marcado) financeiro. Uma conta pode acompanhar vários alunos.</p>
     <div id="guard-list" class="list" aria-live="polite"></div>
     <label class="chk"><input type="checkbox" data-change="guard-fin" data-id="${sid}"${s.guardFin !== false ? raw(' checked') : ''}> Mostrar o financeiro (mensalidade e situação das cobranças, só informativo)</label>
-    <label class="fld"><span>Adicionar responsável</span><input id="guard-q" type="search" autocomplete="off" placeholder="Digite o nome da conta…" data-input="guard-search" data-student="${sid}"></label>
-    <div id="guard-res" class="list" aria-live="polite"><p class="muted small" style="margin:0">Antes, convide o responsável em Compartilhar (Visualizador basta; ele precisa ter conta no Claude) e espere ele aceitar.</p></div></div>` });
+    <form data-form="acct-create" class="stack" data-student="${sid}" data-role="responsavel"><b class="small">Criar acesso de responsável</b>
+      <label class="fld"><span>Nome</span><input name="name" required maxlength="120"></label>
+      <label class="fld"><span>E-mail</span><input name="email" type="email" required autocomplete="off"></label>
+      <label class="fld"><span>Senha provisória (8+ caracteres)</span><input name="password" type="text" minlength="8" required autocomplete="off"></label>
+      <button type="submit" class="btn primary">Criar acesso e ligar</button></form>
+    <label class="fld"><span>Ou ligar uma conta de responsável que já existe</span><input id="guard-q" type="search" autocomplete="off" placeholder="Digite o nome ou e-mail…" data-input="guard-search" data-student="${sid}"></label>
+    <div id="guard-res" class="list" aria-live="polite"></div></div>` });
   renderGuardList(sid);
 }
 ACTIONS['guard-open'] = d => openGuardians(d.id);
@@ -76,7 +81,7 @@ CHANGES['guard-fin'] = async (v, t) => { const s = M.students.get(t.dataset.id);
 let guardSeq = 0;
 INPUTS['guard-search'] = async (v, t) => {
   const seq = ++guardSeq, box = $('#guard-res'); if (!box || !NS.user || !NS.user.search) return;
-  let hits = []; try { hits = await NS.user.search(String(v || '')); } catch (e) { hits = []; }
+  let hits = []; try { hits = await NS.user.search(String(v || ''), 'responsavel'); } catch (e) { hits = []; }
   if (seq !== guardSeq || !$('#guard-res')) return;
   const sid = t.dataset.student, s = M.students.get(sid), have = (s && s.guardians) || [];
   hits = hits.filter(h => h.id && h.id !== UID && !have.includes(h.id));

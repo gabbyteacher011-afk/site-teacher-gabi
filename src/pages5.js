@@ -3,7 +3,7 @@
    ============================================================ */
 
 /* =================== MATERIAIS =================== */
-const matUrl = m => m.assetId ? '/_blob/' + m.assetId : (m.link || '');
+const matUrl = m => m.assetId ? fileUrl(m.assetId) : (m.link || '');
 const matUsage = id => ({
   lessons: S.lessons.filter(l => (l.materials || []).includes(id)),
   plans: S.plans.filter(p => planActivities(p).some(a => a.materialId === id))
@@ -224,9 +224,10 @@ VIEWS.configuracoes = () => {
     <div class="row"><button type="submit" class="btn primary">Salvar configurações</button></div></form>
 
   <div class="card" style="margin-bottom:var(--gap)"><div class="card-h"><h2>Onde seus dados ficam</h2></div>
-    <p style="margin:0 0 8px">Os dados são gravados no banco privado da sua conta Claude, em um espaço que só você acessa (nem o dono da página enxerga o de outra pessoa). Eles continuam aí quando você fecha ou recarrega a página, e aparecem em qualquer aparelho em que você abrir o sistema com a mesma conta.</p>
-    <dl class="kv"><dt>Conta</dt><dd>${UI.userName || 'sua conta Claude'}</dd><dt>Registros</dt><dd>${total}</dd><dt>Sincronização</dt><dd>${st}</dd><dt>Último backup</dt><dd>${s.lastBackup ? fmtDT(s.lastBackup) : 'nunca'}</dd></dl>
-    <p class="hint" style="margin:10px 0 0">O acesso é pela sua conta Claude (não há senha própria neste sistema). Mesmo assim, faça um backup de vez em quando: o sistema não consegue garantir recuperação se a conta ou a página forem removidas. Não registre senhas nem dados de cartão.</p></div>
+    <p style="margin:0 0 8px">Os dados são gravados no banco de dados PostgreSQL do servidor da sua API. Eles continuam lá quando você fecha ou recarrega a página e aparecem em qualquer aparelho em que você entrar com a sua conta.</p>
+    <dl class="kv"><dt>Conta</dt><dd>${UI.userName || 'sua conta'}</dd><dt>Registros</dt><dd>${total}</dd><dt>Sincronização</dt><dd>${st}</dd><dt>Último backup</dt><dd>${s.lastBackup ? fmtDT(s.lastBackup) : 'nunca'}</dd></dl>
+    <div class="row" style="margin-top:10px">${btn('Trocar minha senha', 'pw-open', { icon: 'edit' })}${btn('Sair', 'logout')}</div>
+    <p class="hint" style="margin:10px 0 0">Faça um backup de vez em quando e confira com quem hospeda o banco como são feitas as cópias de segurança. Não registre senhas nem dados de cartão.</p></div>
 
   <div class="card" style="margin-bottom:var(--gap)"><div class="card-h"><h2>Backup e exportação</h2></div>
     <div class="row">${btn('Baixar backup completo (JSON)', 'backup-export', { cls: 'primary', icon: 'download' })}${btn('Restaurar backup…', 'backup-restore', { icon: 'download' })}</div>

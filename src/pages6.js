@@ -6,7 +6,7 @@
 const lrState = l => !l.lr || !Object.values({ a: l.lr.summary, b: l.lr.vocabulary, c: l.lr.highlights, d: l.lr.homework, e: l.lr.nextSteps }).some(v => String(v || '').trim()) ? 'sem' : l.lr.published ? 'publicado' : 'rascunho';
 const STATE_LR = { sem: ['Sem relatório', 'warn'], rascunho: ['Rascunho', 'info'], publicado: ['Publicado', 'ok'] };
 const ctTypeName = c => c.typeName || labelOf(CONTRACT_TYPES, c.type);
-const fileLink = id => id ? '/_blob/' + id : '';
+const fileLink = id => fileUrl(id);
 const defaultEnd = (type, start) => ({ anual: 12, semestral: 6, trimestral: 3, mensal: 1 }[type] ? addDays(shiftMonth(start, { anual: 12, semestral: 6, trimestral: 3, mensal: 1 }[type]), -1) : '');
 
 /* colegas de turma com a mesma aula (mesma data e horário, realizada) */
@@ -228,8 +228,8 @@ VIEWS.portal = () => {
   return html`${pageHead('Área do Aluno', 'Cada aluno tem um painel próprio: aula com Zoom, homework estilo Classroom, cronograma, contrato, materiais, plano da semana e Student\'s Guide. A área da professora é só sua.', btn("Guia padrão", 'guide-edit', { icon: 'key', data: { id: '' } }))}
   ${shareCard()}
   <div class="card" style="margin-bottom:var(--gap)"><div class="card-h"><h2>Como liberar o acesso de um aluno</h2></div>
-    <ol class="small" style="margin:0;padding-left:20px;display:grid;gap:6px"><li>No menu <b>Compartilhar</b> desta página, convide o e-mail do aluno (a mesma conta de e-mail com que ele entra no Claude). Dê a permissão de <b>Contribuidor</b> ou equivalente, que permite entregar homework; só &quot;ver&quot; deixa o aluno sem poder entregar. Nunca dê permissão de edição. <b>O aluno precisa ter conta no Claude</b> para abrir o link.</li><li>Depois que ele aceitar, clique em <b>Vincular conta</b> na linha dele, abaixo, e escolha o nome dele na busca.</li><li>Cole o <b>link do Zoom</b> e confira com <b>Prévia</b>. Pronto: o aluno abre o mesmo link e cai direto no painel dele.</li><li><b>Aluno menor de idade:</b> marque "menor de idade" no cadastro dele, convide o responsável do mesmo jeito e use <b>Responsáveis</b> na linha do aluno. O responsável abre o mesmo link e vê, só para leitura, o painel dos filhos ligados à conta dele.</li></ol>
-    <p class="small muted" style="margin:10px 0 0">Cada aluno só consegue ler o próprio painel, e o painel do aluno mostra apenas o que você publica: nunca financeiro, notas internas ou dados de outros alunos. O painel dos responsáveis é igual, mas inclui o financeiro informativo (você pode desmarcar por aluno). O arquivo do contrato é um anexo com endereço longo e não adivinhável: quem receber esse endereço consegue abri-lo, então não o repasse.</p>
+    <ol class="small" style="margin:0;padding-left:20px;display:grid;gap:6px"><li>Clique em <b>Vincular conta</b> na linha do aluno, abaixo, e preencha <b>Criar acesso</b> (nome, e-mail e uma senha provisória com 8 ou mais caracteres). Passe ao aluno o e-mail, a senha e o link acima.</li><li>O aluno entra pelo link e vê só o painel dele. Dentro do painel ele pode trocar a senha. Se esquecer, use <b>Redefinir senha</b> na mesma janela.</li><li>Cole o <b>link do Zoom</b> e confira com <b>Prévia</b>.</li><li><b>Aluno menor de idade:</b> marque "menor de idade" no cadastro dele e use <b>Responsáveis</b> na linha do aluno para criar o acesso do responsável. O responsável entra pelo mesmo link e vê, só para leitura, o painel dos filhos ligados à conta dele.</li></ol>
+    <p class="small muted" style="margin:10px 0 0">Cada aluno só consegue ler o próprio painel, e o painel do aluno mostra apenas o que você publica: nunca financeiro, notas internas ou dados de outros alunos. O painel dos responsáveis é igual, mas inclui o financeiro informativo (você pode desmarcar por aluno). Os arquivos só abrem para quem está com a sessão aberta e tem permissão (a professora, o aluno dono do envio ou quem o painel publicado cita).</p>
     ${S.portalError ? html`<p class="small" style="color:var(--bad);margin:8px 0 0">Última publicação falhou: ${S.portalError}</p>` : ''}</div>
   ${list.length ? html`<div class="card"><div class="tablewrap"><table class="tbl" style="min-width:1100px"><thead><tr><th>Aluno</th><th>Conta do aluno</th><th>Zoom</th><th>Publicado</th><th></th></tr></thead><tbody>
     ${list.map(s => html`<tr><td><b>${s.name}</b> ${demoTag(s)}${s.minor ? badge('menor de idade', 'acc') : ''}${s.groupId && M.groups.get(s.groupId) ? html`<div class="small muted">Turma ${M.groups.get(s.groupId).name}</div>` : ''}</td><td>${s.accountId ? badge('Vinculada', 'ok') : badge('Não vinculada', 'warn')}</td><td>${isHttpUrl(s.zoomUrl) ? badge('Configurado', 'ok') : html`<span class="muted">—</span>`}</td><td class="small nowrap">${s.accountId ? (S.portalAt[s.id] ? fmtDT(S.portalAt[s.id]) : html`<span class="muted">nesta sessão: ainda não</span>`) : '—'}</td>
@@ -253,22 +253,30 @@ ACTIONS['acct-unlink'] = async d => {
 };
 ACTIONS['acct-link'] = d => {
   const s = M.students.get(d.id); if (!s) return;
-  openModal({ title: 'Vincular conta do aluno', narrow: true, body: html`<p class="muted small" style="margin:0">${s.name}</p>
-    <label class="fld"><span>Buscar pelo nome da conta</span><input id="acct-q" type="search" autocomplete="off" placeholder="Digite o nome… (vazio mostra quem tem acesso)" data-input="acct-search" data-student="${d.id}"></label>
-    <div id="acct-res" class="list" aria-live="polite"><p class="muted small" style="margin:0">Digite para buscar. A pessoa precisa já ter sido convidada em Compartilhar.</p></div>` });
+  openModal({ title: 'Conta do aluno', narrow: true, body: html`<p class="muted small" style="margin:0">${s.name}</p>
+    ${s.accountId ? html`<div class="card" style="padding:12px"><div class="small"><b>Conta vinculada:</b> <span id="acct-cur">…</span></div>
+      <form data-form="acct-reset" class="row" style="margin-top:8px" data-id="${s.accountId}"><input name="password" type="password" minlength="8" required autocomplete="new-password" placeholder="Nova senha (8+ caracteres)" aria-label="Nova senha" style="flex:1;min-width:160px"><button type="submit" class="btn sm">Redefinir senha</button></form></div>` : ''}
+    <form data-form="acct-create" class="stack" data-student="${d.id}" data-role="aluno"><b class="small">Criar acesso novo</b>
+      <label class="fld"><span>Nome</span><input name="name" required maxlength="120" value="${s.name || ''}"></label>
+      <label class="fld"><span>E-mail</span><input name="email" type="email" required autocomplete="off"></label>
+      <label class="fld"><span>Senha provisória (8+ caracteres)</span><input name="password" type="text" minlength="8" required autocomplete="off"></label>
+      <button type="submit" class="btn primary">Criar acesso e vincular</button></form>
+    <label class="fld"><span>Ou vincular uma conta que já existe</span><input id="acct-q" type="search" autocomplete="off" placeholder="Digite o nome ou e-mail…" data-input="acct-search" data-student="${d.id}"></label>
+    <div id="acct-res" class="list" aria-live="polite"></div>` });
+  if (s.accountId && NS.user && NS.user.profiles) NS.user.profiles([s.accountId]).then(p => { const e = $('#acct-cur'); if (e) e.textContent = (p && p[s.accountId] && p[s.accountId].name) || 'conta sem nome'; }).catch(() => { });
   INPUTS['acct-search']('', $('#acct-q'));
 };
 let acctSeq = 0;
 INPUTS['acct-search'] = async (v, t) => {
   const seq = ++acctSeq, box = $('#acct-res'); if (!box || !NS.user || !NS.user.search) return;
-  let hits = []; try { hits = await NS.user.search(String(v || '')); } catch (e) { hits = []; }
+  let hits = []; try { hits = await NS.user.search(String(v || ''), 'aluno'); } catch (e) { hits = []; }
   if (seq !== acctSeq || !$('#acct-res')) return;
   hits = hits.filter(h => h.id && h.id !== UID);
   const sid = t.dataset.student;
   box.innerHTML = hits.length ? hits.slice(0, 20).map(h => {
     const other = S.students.find(x => x.accountId === h.id && x.id !== sid);
     return `<button type="button" class="item" data-act="acct-pick" data-id="${esc(h.id)}" data-student="${esc(sid)}"><img src="${esc(h.avatarUrl)}" alt="" width="32" height="32" style="border-radius:50%"><div class="grow"><div class="t">${esc(h.name || 'Conta sem nome')}</div>${other ? `<div class="small muted">já vinculada a ${esc(other.name)}</div>` : ''}${h.guest ? '<div class="small muted">convidado</div>' : ''}</div></button>`;
-  }).join('') : '<p class="muted small" style="margin:0">Ninguém encontrado. Confira se o aluno aceitou o convite em Compartilhar e tente o nome como aparece na conta dele.</p>';
+  }).join('') : '<p class="muted small" style="margin:0">Nenhuma conta de aluno encontrada. Crie o acesso acima.</p>';
 };
 ACTIONS['acct-pick'] = async d => {
   const s = M.students.get(d.student); if (!s) return;
@@ -283,3 +291,21 @@ ACTIONS['acct-pick'] = async d => {
   try { await publishPortal(s.id); toast('Painel do aluno publicado.', 'ok'); } catch (e) { toast('Vinculado, mas a publicação falhou: ' + errMsg(e), 'err'); }
 };
 
+
+/* ---------- criar / redefinir contas e trocar a própria senha ---------- */
+FORMS['acct-create'] = async (v, f, ds) => {
+  if (!NS.user || !NS.user.create) { toast('Criar contas não está disponível aqui.', 'err'); return; }
+  const role = ds.role === 'responsavel' ? 'responsavel' : 'aluno';
+  const u = await NS.user.create({ name: String(v.name || '').trim(), email: String(v.email || '').trim(), password: String(v.password || ''), role });
+  toast('Conta criada: ' + u.email + '. Anote a senha e passe para a pessoa.', 'ok');
+  await (role === 'aluno' ? ACTIONS['acct-pick']({ id: u.id, student: ds.student }) : ACTIONS['guard-pick']({ id: u.id, student: ds.student }));
+};
+FORMS['acct-reset'] = async (v, f, ds) => {
+  await NS.user.resetPassword(ds.id, String(v.password || ''));
+  f.reset(); toast('Senha redefinida. Passe a nova senha para a pessoa.', 'ok');
+};
+ACTIONS['pw-open'] = () => openModal({ title: 'Trocar minha senha', narrow: true, body: html`<form data-form="pw-change" class="stack">
+  <label class="fld"><span>Senha atual</span><input name="current" type="password" required autocomplete="current-password"></label>
+  <label class="fld"><span>Nova senha (8+ caracteres)</span><input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
+  <button type="submit" class="btn primary">Salvar nova senha</button></form>` });
+FORMS['pw-change'] = async v => { await NS.user.changePassword(String(v.current || ''), String(v.password || '')); closeAllModals(); toast('Senha alterada.', 'ok'); };

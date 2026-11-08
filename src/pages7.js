@@ -6,10 +6,10 @@
 /* só apaga o arquivo se nenhum outro registro (outro aluno da turma, por exemplo) ainda o usa */
 const assetUses = id => [['materials', 'assetId'], ['recordings', 'assetId'], ['plans', 'pdfAssetId'], ['homework', 'attachId'], ['contracts', 'assetId'], ['students', 'bannerImageId']].reduce((n, [c, k]) => n + S[c].filter(x => x[k] === id).length, 0);
 async function releaseAsset(id) { if (!id || !NS.assets || assetUses(id) > 1) return; try { await NS.assets.delete(id); } catch (e) { /* já removido */ } }
-const APP_URL = 'https://claude.ai/artifact/1ZCTaRFEXJiKuhQTJw2kFJ';
+const APP_URL = (window.APP_CONFIG && window.APP_CONFIG.siteUrl) || (location.origin + location.pathname);
 const stamp = () => new Date().toISOString();
 const fmtStamp = s => { try { return s ? new Date(s).toLocaleString(loc(), { dateStyle: 'short', timeStyle: 'short' }) : ''; } catch (e) { return ''; } };
-const blobUrl = id => id ? '/_blob/' + id : '';
+const blobUrl = id => fileUrl(id);
 async function uploadFile(file) {
   if (!NS.assets) throw new Error('O envio de arquivos não está disponível para esta conta.');
   if (file.size > 20 * 1024 * 1024) throw new Error('O arquivo passa de 20 MB.');
@@ -309,7 +309,7 @@ function portalPage() {
   if (S.portal && S.portal.guardian) return guardianPage();
   const d = S.portal, first = d && d.name ? d.name.split(' ')[0] : '';
   const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-  return html`<div class="pt-wrap"><header class="pt-head"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div class="grow"><div class="pt-brand">${BRAND.name}</div><small>${BRAND.sub}</small></div><button type="button" class="icon-btn" data-act="toggle-theme" aria-label="Alternar tema claro e escuro">${ico(dark ? 'sun' : 'moon')}</button></header>
+  return html`<div class="pt-wrap"><header class="pt-head"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div class="grow"><div class="pt-brand">${BRAND.name}</div><small>${BRAND.sub}</small></div><button type="button" class="icon-btn" data-act="toggle-theme" aria-label="Alternar tema claro e escuro">${ico(dark ? 'sun' : 'moon')}</button><button type="button" class="btn sm" data-act="pw-open">Senha</button><button type="button" class="btn sm" data-act="logout">Sair</button></header>
   <div class="pt-hello"><h1>${d ? `Olá, ${first}!` : 'Bem-vindo(a)!'}</h1>${d && d.level ? html`<p>Seu nível: ${badge(d.level, 'acc')}</p>` : ''}${S.syncError ? html`<p class="small" style="color:var(--bad)">Sem conexão com o servidor. Os dados abaixo podem estar desatualizados.</p>` : ''}${d && d.updatedAt ? html`<p class="tiny muted">Atualizado em ${fmtDT(d.updatedAt)}</p>` : ''}</div>
   ${portalView(d)}<footer class="pt-foot">${BRAND.name} · ${BRAND.sub}</footer></div>`;
 }
@@ -353,16 +353,7 @@ ACTIONS['ct-file-rm'] = async d => {
 };
 
 /* =================== MODELOS NA BIBLIOTECA =================== */
-const MODEL_DOCS = [
-  { title: 'Weekly Study Plan (modelo)', desc: 'Modelo do plano semanal: cards por atividade e Daily Planner. Use para montar o PDF de cada aluno.', assetId: '1d7ebd62c3036f90fdbc80730654b42b', fileName: 'Modelo-Weekly-Study-Plan.pdf' },
-  { title: 'Banner Google Classroom (modelo)', desc: 'Banner horizontal com nome do curso e do aluno, para o topo do Classroom.', assetId: '94b08642a3751265c84591c487b6d3ed', fileName: 'Modelo-Banner-Google-Classroom.pdf' },
-  { title: "Student's Guide (exemplo: Gustavo)", desc: "Guia do aluno usado como base da aba Student\'s Guide. Contém dados de um aluno real: não compartilhe.", assetId: '18b9138963ee198b97eaf9c9964e249b', fileName: 'Students-Guide-Gustavo.pdf' },
-  { title: 'Report Card (modelo Evolve Level 2)', desc: 'Student Progress Report em português, com blocos de evolução.', assetId: '3be3c9523186d7013b8c9bc66e303755', fileName: 'Report-Card-E2.pdf' },
-  { title: 'Holidays Challenge (modelo)', desc: 'Desafio de férias com quatro semanas e tarefas de listening, reading, writing e speaking.', assetId: 'dafc556792787d8c5782d2915864652e', fileName: 'Modelo-Holidays-Challenge.pdf' },
-  { title: 'Datas especiais (modelo)', desc: 'Cartões de Natal, Ano Novo, Thanksgiving e férias.', assetId: '898667e11c8750239d7c136abe65ee53', fileName: 'Modelo-Datas-especiais.pdf' },
-  { title: 'Birthday (modelo)', desc: 'Cartão de aniversário para o aluno.', assetId: '125d1b9bd9c58ceaaeb5bae1aa36b35d', fileName: 'Modelo-Birthday.pdf' },
-  { title: 'Back to school (modelo)', desc: 'Slides de volta às aulas, boas-vindas e despedida.', assetId: '3f32e94c2cce054bae4d1a6f017d13ae', fileName: 'Modelo-Back-to-school.pdf' }
-];
+const MODEL_DOCS = []; // modelos de PDF não acompanham este site; a Biblioteca começa vazia
 async function seedModels() {
   if (window.__NOSEED || S.seeding || S.settings.modelsSeeded || !MODEL_DOCS.length || S.mode !== 'professora') return;
   S.seeding = true;
@@ -376,7 +367,7 @@ async function seedModels() {
 ACTIONS['copy-link'] = async () => { try { await navigator.clipboard.writeText(APP_URL); toast('Link copiado.', 'ok'); } catch (e) { toast('Não foi possível copiar sozinho. Selecione e copie o link na caixa.', 'err'); const i = $('#share-url'); if (i) { i.focus(); i.select(); } } };
 const shareCard = () => html`<div class="card" style="margin-bottom:var(--gap)"><div class="card-h"><h2>${ico('link')} Link para o aluno</h2></div>
   <div class="row"><input id="share-url" type="text" readonly value="${APP_URL}" aria-label="Link do sistema" style="flex:1;min-width:200px">${btn('Copiar link', 'copy-link', { cls: 'primary', icon: 'copy' })}</div>
-  <p class="small muted" style="margin:10px 0 0">É o mesmo link do sistema: quem entra com a conta vinculada cai direto no painel dele (slides e materiais, homework, plano semanal em PDF, contrato, cadastro e Student's Guide). Só o seu e-mail abre a área da professora. O aluno precisa ser convidado em <b>Compartilhar</b> com permissão de <b>colaborar</b> (para poder entregar homework), sem permissão de editar.</p></div>`;
+  <p class="small muted" style="margin:10px 0 0">É o mesmo link do sistema: quem entra com a conta vinculada cai direto no painel dele (slides e materiais, homework, plano semanal em PDF, contrato, cadastro e Student's Guide). Só a sua conta abre a área da professora. O aluno entra com o e-mail e a senha que você criar em <b>Vincular conta</b>.</p></div>`;
 
 /* =================== AVISO DE ENTREGAS (sino) =================== */
 const unseenDeliveries = () => S.homework.filter(h => h.status === 'pendente_correcao' && h.subAt && (!h.seenAt || h.seenAt < h.subAt)).sort((a, b) => cmpStr(b.subAt, a.subAt));

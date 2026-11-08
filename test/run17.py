@@ -10,7 +10,7 @@ with sync_playwright() as p:
     t.go('portal')
     pg.locator('tr', has_text='Lia').get_by_role('button', name='Avisar').click(); pg.wait_for_timeout(300)
     href=pg.get_attribute('#ntf-a','href'); t.ok(href.startswith('https://wa.me/5511987654321?text='), 'link wa.me do aluno com 55: '+href[:40])
-    t.ok('Lia' in urllib.parse.unquote(href) and 'claude.ai/artifact' in urllib.parse.unquote(href), 'texto traz nome e link do site')
+    t.ok('Lia' in urllib.parse.unquote(href) and 'index.html' in urllib.parse.unquote(href), 'texto traz nome e link do site')
     pg.select_option('#ntf-who','resp'); pg.wait_for_timeout(200); t.ok('5511912345678' in pg.get_attribute('#ntf-a','href') and 'Olá! O painel' in pg.input_value('#ntf-text'), 'destinatário responsável muda número e texto')
     pg.fill('#ntf-text','Oi editado & teste'); pg.dispatch_event('#ntf-text','input'); pg.wait_for_timeout(200)
     t.ok('Oi%20editado%20%26%20teste' in pg.get_attribute('#ntf-a','href'), 'edição do texto vai no link (codificada)')
