@@ -379,3 +379,21 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
 .bell { position: relative; } .bell .cnt { position: absolute; top: -2px; right: -2px; font-style: normal; background: var(--bad); color: #fff; border-radius: 999px; min-width: 18px; height: 18px; display: grid; place-items: center; font-size: 11px; padding: 0 5px; }
 
 .pt-kids{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 var(--gap,14px)}
+
+/* ---- menu lateral em seções ---- */
+.nav-g { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.nav-h { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--muted); padding: 8px 12px 4px; }
+/* ---- atalhos do painel do aluno/responsável ---- */
+.pt-menu { margin: 4px 0 14px; }
+.pt-menu-h { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--muted); margin: 0 2px 8px; }
+.pt-menu-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.pt-mi { display: flex; align-items: center; gap: 10px; text-align: left; padding: 12px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; min-width: 0; }
+.pt-mi:hover { border-color: var(--accent); }
+.pt-mi-ic { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); display: grid; place-items: center; }
+.pt-mi-ic .ico { width: 20px; height: 20px; }
+.pt-mi-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pt-mi-t small { color: var(--muted); font-size: 12px; }
+.pt-mi-go { color: var(--muted); font-size: 20px; }
+.pt-mi .cnt { font-style: normal; background: var(--bad); color: #fff; border-radius: 999px; min-width: 20px; height: 20px; display: inline-grid; place-items: center; font-size: 11px; padding: 0 6px; }
+.pt-back { border: 0; background: none; color: var(--accent-ink); font: inherit; font-weight: 600; cursor: pointer; padding: 4px 2px; }
+.pt-pg { margin: 4px 2px 12px; font-size: 20px; }

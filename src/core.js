@@ -167,6 +167,14 @@ function applyPrefs() {
 
 /* ---------- rotas ---------- */
 const PAGES = [['dashboard', 'Dashboard', 'home'], ['alunos', 'Alunos', 'users'], ['calendario', 'Calendário', 'calendar'], ['aulas', 'Aulas', 'book'], ['exercicios', 'Exercícios e Homework', 'pencil'], ['planos', 'Weekly Study Plans', 'plan'], ['relatorios', 'Relatórios de Desempenho', 'chart'], ['financeiro', 'Financeiro', 'wallet'], ['materiais', 'Biblioteca de Materiais', 'folder'], ['objetivos', 'Objetivos de Aprendizagem', 'target'], ['contratos', 'Contrato e Cronograma', 'route'], ['relaula', 'Relatório da Aula', 'contract'], ['gravacoes', 'Gravações das Aulas', 'video'], ['turmas', 'Turmas', 'users'], ['portal', 'Área do Aluno', 'video'], ['tarefas', 'Tarefas da Professora', 'check'], ['configuracoes', 'Configurações', 'sliders']];
+const NAV_GROUPS = [
+  ['Escola', ['dashboard', 'alunos', 'calendario', 'aulas', 'turmas']],
+  ['Ensino', ['exercicios', 'planos', 'materiais', 'relaula', 'gravacoes']],
+  ['Acompanhamento', ['relatorios', 'objetivos', 'contratos']],
+  ['Negócio', ['financeiro', 'tarefas']],
+  ['Área do aluno', ['portal']],
+  ['Sistema', ['configuracoes']]
+];
 const NAV_OF = { aluno: 'alunos', plano: 'planos', previa: 'portal', previaresp: 'portal' };
 function parseRoute() {
   const h = UI.route || location.hash.slice(1) || 'dashboard';
@@ -223,7 +231,7 @@ function buildShell() {
   $('#root').innerHTML = html`<div class="shell" id="shell">
     <aside class="side" id="side" aria-label="Menu principal">
       <div class="brand"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div><h1 id="brand-name"></h1><small id="brand-sub"></small></div></div>
-      <nav class="nav" id="nav">${PAGES.map(([id, label, ic]) => html`<a href="#${id}" data-nav="${id}">${ico(ic)}<span>${label}</span></a>`)}</nav>
+      <nav class="nav" id="nav">${NAV_GROUPS.map(([g, ids]) => html`<div class="nav-g" role="group" aria-label="${g}"><div class="nav-h">${g}</div>${ids.map(id => PAGES.find(p => p[0] === id)).filter(Boolean).map(([id, label, ic]) => html`<a href="#${id}" data-nav="${id}">${ico(ic)}<span>${label}</span></a>`)}</div>`)}</nav>
       <div class="side-foot"><div id="sync"></div><div id="whoami"></div></div>
     </aside>
     <div class="scrim" id="scrim" data-act="side-close"></div>

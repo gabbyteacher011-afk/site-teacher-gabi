@@ -25,3 +25,9 @@ class T:
         return len([k for k in s.store() if k.startswith('data/users/u1/hub/'+col+'/') ])
 def json_s(o):
     import json; return json.dumps(json.dumps(o))
+
+import re as _re
+def PT(pg, name):
+    """Atalho do painel (aluno/responsável): volta ao início, se preciso, e devolve o cartão pedido."""
+    if pg.locator('.pt-back').count(): pg.locator('.pt-back').first.click(); pg.wait_for_timeout(120)
+    return pg.locator('.pt-mi').filter(has_text=_re.compile('^\\s*' + _re.escape(name)))

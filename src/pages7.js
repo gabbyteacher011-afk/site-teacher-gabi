@@ -251,9 +251,17 @@ function ptHwList(d, limit) {
   return { rows, html: rows.length ? html`<div class="pt-hws">${(limit ? rows.slice(0, limit) : rows).map(item)}</div>` : html`<p class="muted small" style="margin:0">Nenhuma atividade por enquanto.</p>` };
 }
 const PT_PREVIEW = { sub: null };
+const PT_SUB = { homework: 'Faça e entregue as atividades', aulas: 'Suas aulas e relatórios', gravacoes: 'Reveja as aulas gravadas', progresso: 'Cronograma e evolução', materiais: 'Materiais das aulas', plano: 'Plano de estudos da semana', guia: 'Zoom, Classroom e tutoriais', dados: 'Contrato e cadastro' };
+const G_SUB = { homework: 'Situação e notas', aulas: 'Aulas e relatórios', progresso: 'Cronograma e evolução', dados: 'Contrato e cadastro', financeiro: 'Mensalidades' };
+/* grade de atalhos (cartões com ícone, título e descrição) */
+function ptMenu(tabs, act, subs, badges) {
+  return html`<div class="pt-menu"><div class="pt-menu-h">Acesso rápido</div><div class="pt-menu-g">${tabs.map(([k, l, ic]) => html`<button type="button" class="pt-mi" data-act="${act}" data-tab="${k}"><span class="pt-mi-ic">${ico(ic)}</span><span class="pt-mi-t"><b>${l}</b><small>${subs[k] || ''}</small></span>${badges[k] ? html`<i class="cnt">${badges[k]}</i>` : html`<span class="pt-mi-go" aria-hidden="true">›</span>`}</button>`)}</div></div>`;
+}
+const ptBack = (act, home, label) => html`<button type="button" class="pt-back" data-act="${act}" data-tab="${home}">← Início</button><h2 class="pt-pg">${label}</h2>`;
 function ptHome(d) {
   const today = todayISO(), ev = stageEvolution(d.stages || [], today), hw = ptHwList(d, 4), pend = hw.rows.filter(r => ['pendente', 'atrasada', 'rascunho', 'refazer'].includes(r.k)).length;
   return html`${ptNext(d)}
+  ${ptMenu(PT_TABS.slice(1), 'pt-tab', PT_SUB, { homework: pend })}
   <section class="pt-card"><h2>${ico('pencil')} Homework</h2>${pend ? html`<p class="small" style="margin:0 0 10px"><b>${pend}</b> ${pend === 1 ? 'atividade espera' : 'atividades esperam'} por você.</p>` : html`<p class="small muted" style="margin:0 0 10px">Tudo em dia por aqui. 🎉</p>`}${hw.html}${hw.rows.length > 4 ? html`<p style="margin:12px 0 0">${btn('Ver todas', 'pt-tab', { cls: 'sm', data: { tab: 'homework' } })}</p>` : ''}</section>
   ${ev.total ? html`<section class="pt-card"><h2>${ico('route')} Minha evolução</h2><div class="pt-tiles"><div><b>${ev.pctDone}%</b><small>do cronograma concluído</small></div><div><b>${ev.done}/${ev.total}</b><small>etapas concluídas</small></div><div><b>${d.lessonsDone}${d.lessonsTotal ? '/' + d.lessonsTotal : ''}</b><small>aulas realizadas</small></div></div><p style="margin:12px 0 0">${btn('Ver progresso', 'pt-tab', { cls: 'sm', data: { tab: 'progresso' } })}</p></section>` : ''}`;
 }
@@ -303,7 +311,7 @@ function portalView(d) {
   const tab = PT_TABS.some(t => t[0] === UI.ptTab) ? UI.ptTab : 'inicio';
   const pend = (() => { const sub = S.mode === 'aluno' ? subItems() : (PT_PREVIEW.sub || {}), ret = S.mode === 'aluno' ? retItems() : {}; return (d.homework || []).filter(h => ['pendente', 'atrasada', 'refazer'].includes(hwKeyStudent(h, sub, ret, todayISO()))).length; })();
   const body = { inicio: ptHome, homework: dd => html`<section class="pt-card"><h2>${ico('pencil')} Homework</h2><p class="small muted" style="margin:0 0 10px">Abra uma atividade para fazer o documento, salvar e entregar. A professora corrige e devolve aqui.</p>${ptHwList(dd).html}</section>`, aulas: ptClasses, gravacoes: ptRecordings, progresso: ptProgress, materiais: ptMaterials, plano: ptPlan, guia: ptGuide, dados: ptData }[tab](d);
-  return html`${bannerHtml(d.banner)}<nav class="pt-tabs" role="tablist" aria-label="Seções do painel">${PT_TABS.map(([k, l, ic]) => html`<button type="button" role="tab" aria-selected="${tab === k}" data-act="pt-tab" data-tab="${k}">${ico(ic)}<span>${l}</span>${k === 'homework' && pend ? html`<i class="cnt">${pend}</i>` : ''}</button>`)}</nav><div class="pt-stack">${body}</div>`;
+  return html`${bannerHtml(d.banner)}${tab === 'inicio' ? '' : ptBack('pt-tab', 'inicio', (PT_TABS.find(t => t[0] === tab) || [])[1])}<div class="pt-stack">${body}</div>`;
 }
 function portalPage() {
   if (S.portal && S.portal.guardian) return guardianPage();

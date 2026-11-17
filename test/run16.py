@@ -14,7 +14,10 @@ with sync_playwright() as p:
     pg.goto(URL); pg.wait_for_timeout(1500)
     f=[]
     def ck(c,m): print(('PASS ' if c else 'FAIL ')+m); (not c) and f.append(m)
-    def tab(n): pg.get_by_role('tab', name=__import__('re').compile('^'+n)).click(); pg.wait_for_timeout(150); return pg.inner_text('body')
+    def tab(n):
+        c = PT(pg, n)
+        if n != 'Resumo': c.first.click()
+        pg.wait_for_timeout(150); return pg.inner_text('body')
     tx=pg.inner_text('body')
     ck('Painel dos responsáveis' in tx and 'Lia' in tx and 'Davi' in tx, 'cabeçalho e seletor de filhos')
     ck('Próxima aula' in tx and 'Sua próxima aula' not in tx, 'texto no feminino/terceira pessoa')
@@ -24,7 +27,7 @@ with sync_playwright() as p:
     ck(pg.locator('button[data-act=pt-hw], [data-act=hw-open], [data-act=pt-hw]').count()==0, 'homework não é abrível/entregável')
     pg.get_by_role('tab', name='Davi', exact=True).click(); pg.wait_for_timeout(200)
     ck('Davi' in pg.inner_text('body'), 'troca de filho')
-    ck(pg.get_by_role('tab', name='Financeiro').count()==0, 'filho sem financeiro liberado: aba some')
+    ck(PT(pg,'Financeiro').count()==0, 'filho sem financeiro liberado: aba some')
     t2=tab('Aulas'); ck('Resumo Davi' in t2 and 'Resumo Lia' not in t2, 'dados do filho selecionado')
     tab('Resumo'); ck(pg.locator('a.pt-zoom').get_attribute('href')=='https://zoom.us/j/s2', 'Zoom do filho certo')
     ck(pg.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'), 'sem scroll horizontal em 400px')

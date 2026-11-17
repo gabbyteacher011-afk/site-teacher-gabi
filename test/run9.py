@@ -16,7 +16,10 @@ with sync_playwright() as p:
         pg.goto(URL); pg.wait_for_timeout(1500); tx=pg.inner_text('body')
         print('==',label, len(tx))
         if uid=='acc1':
-            def tab(n): pg.get_by_role('tab', name=n).click(); pg.wait_for_timeout(150); return pg.inner_text('body')
+            def tab(n):
+                c = PT(pg, n)
+                if n != 'Início': c.first.click()
+                pg.wait_for_timeout(150); return pg.inner_text('body')
             allt=tx+tab('Progresso')+tab('Aulas')+tab('Meus dados')+tab('Homework')
             for s in ['Olá, Ana','Entrar na aula','Minha evolução','Cronograma do ano','Meu contrato','Relatórios das aulas','Homework','Foque em speaking']: print('PASS' if s in allt else 'FAIL', s)
             tab('Início'); print('PASS' if pg.locator('a.pt-zoom').get_attribute('href')=='https://zoom.us/j/1' else 'FAIL','zoom href')

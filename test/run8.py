@@ -44,7 +44,7 @@ with sync_playwright() as p:
         t.ok('monthly' not in js and 'charges' not in js and 'teacherNotes' not in js and 'observations' not in js, 'espelho sem financeiro/notas internas')
     # prévia
     row=pg.locator('tr', has_text='Ana Beatriz'); row.get_by_role('button', name='Prévia').click(); pg.wait_for_timeout(300)
-    tx=t.text(); pg.get_by_role('tab', name='Aulas').click(); pg.wait_for_timeout(200); tx2=t.text(); t.ok('Entrar na aula' in tx and 'Minha evolução' in tx and 'Relatórios das aulas' in tx2, 'prévia do aluno completa')
+    tx=t.text(); PT(pg,'Aulas').first.click(); pg.wait_for_timeout(200); tx2=t.text(); t.ok('Entrar na aula' in tx and 'Minha evolução' in tx and 'Relatórios das aulas' in tx2, 'prévia do aluno completa')
     t.ok('Financeiro' not in tx and 'mensalidade' not in tx.lower(), 'prévia sem financeiro')
     pg.screenshot(path='/tmp/s8_prev.png', full_page=True)
     # mobile da prévia

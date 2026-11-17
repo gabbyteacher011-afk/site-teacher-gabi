@@ -39,7 +39,7 @@ function guardianView(doc) {
   const pend = (kid.homework || []).filter(h => ['pendente', 'atrasada', 'refazer'].includes(h.key)).length;
   const body = { resumo: gResumo, homework: d => html`<section class="pt-card"><h2>${ico('pencil')} Homework</h2><p class="small muted" style="margin:0 0 10px">Acompanhamento somente leitura: situação, nota e comentário da professora.</p>${gHwList(d).html}</section>`, aulas: ptClasses, progresso: ptProgress, dados: ptData, financeiro: gFinance }[tab](kid);
   return html`${kids.length > 1 ? html`<div class="pt-kids" role="tablist" aria-label="Alunos">${kids.map(k => html`<button type="button" role="tab" class="btn${k === kid ? ' primary' : ''}" aria-selected="${k === kid}" data-act="g-kid" data-id="${k.studentId}">${k.name}</button>`)}</div>` : ''}
-  ${bannerHtml(kid.banner)}<nav class="pt-tabs" role="tablist" aria-label="Seções do painel">${tabs.map(([k, l, ic]) => html`<button type="button" role="tab" aria-selected="${tab === k}" data-act="g-tab" data-tab="${k}">${ico(ic)}<span>${l}</span>${k === 'homework' && pend ? html`<i class="cnt">${pend}</i>` : ''}</button>`)}</nav><div class="pt-stack">${body}</div>`;
+  ${bannerHtml(kid.banner)}${tab === 'resumo' ? ptMenu(tabs.filter(t => t[0] !== 'resumo'), 'g-tab', G_SUB, { homework: pend }) : ptBack('g-tab', 'resumo', (tabs.find(t => t[0] === tab) || [])[1])}<div class="pt-stack">${body}</div>`;
 }
 function guardianPage() {
   const d = S.portal, first = String(UI.userName || '').split(' ')[0];

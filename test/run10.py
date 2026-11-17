@@ -33,7 +33,7 @@ with sync_playwright() as p:
     only={k:v for k,v in full.items() if k.startswith('portal/')}
     acc=list(only.keys())[0].split('/')[1]
     b,pg,errs=page(p, only, uid=acc, w=420)
-    pg.get_by_role('tab', name='Homework').first.click(); pg.wait_for_timeout(200)
+    PT(pg,'Homework').first.click(); pg.wait_for_timeout(200)
     ok('Pendente' in pg.inner_text('body'), 'aluno vê status Pendente')
     pg.locator('.pt-hw').first.click(); pg.wait_for_timeout(300)
     ok(pg.locator('#stu_doc').count()==1 and 'I ____ a teacher' in pg.inner_text('#stu_doc'), 'aluno recebe cópia editável')
@@ -73,7 +73,7 @@ with sync_playwright() as p:
     b.close()
     # 4) aluno vê devolvido
     b,pg,errs=page(p, {**only,'hwsub/'+acc:sub,'hwret/'+acc:ret}, uid=acc, w=420)
-    pg.get_by_role('tab', name='Homework').first.click(); pg.wait_for_timeout(200)
+    PT(pg,'Homework').first.click(); pg.wait_for_timeout(200)
     ok('Corrigida' in pg.inner_text('body'), 'aluno vê Corrigida')
     pg.locator('.pt-hw').first.click(); pg.wait_for_timeout(300)
     tx=pg.inner_text('#modals'); ok('Muito bem!' in tx and '9/10' in tx and pg.locator('#modals mark.hl-g').count()==1, 'aluno vê nota, feedback e marcações')

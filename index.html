@@ -389,6 +389,24 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
 
 .pt-kids{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 var(--gap,14px)}
 
+/* ---- menu lateral em seções ---- */
+.nav-g { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.nav-h { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--muted); padding: 8px 12px 4px; }
+/* ---- atalhos do painel do aluno/responsável ---- */
+.pt-menu { margin: 4px 0 14px; }
+.pt-menu-h { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--muted); margin: 0 2px 8px; }
+.pt-menu-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.pt-mi { display: flex; align-items: center; gap: 10px; text-align: left; padding: 12px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; min-width: 0; }
+.pt-mi:hover { border-color: var(--accent); }
+.pt-mi-ic { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); display: grid; place-items: center; }
+.pt-mi-ic .ico { width: 20px; height: 20px; }
+.pt-mi-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pt-mi-t small { color: var(--muted); font-size: 12px; }
+.pt-mi-go { color: var(--muted); font-size: 20px; }
+.pt-mi .cnt { font-style: normal; background: var(--bad); color: #fff; border-radius: 999px; min-width: 20px; height: 20px; display: inline-grid; place-items: center; font-size: 11px; padding: 0 6px; }
+.pt-back { border: 0; background: none; color: var(--accent-ink); font: inherit; font-weight: 600; cursor: pointer; padding: 4px 2px; }
+.pt-pg { margin: 4px 2px 12px; font-size: 20px; }
+
 </style>
 </head>
 <body>
@@ -1296,6 +1314,14 @@ function applyPrefs() {
 
 /* ---------- rotas ---------- */
 const PAGES = [['dashboard', 'Dashboard', 'home'], ['alunos', 'Alunos', 'users'], ['calendario', 'Calendário', 'calendar'], ['aulas', 'Aulas', 'book'], ['exercicios', 'Exercícios e Homework', 'pencil'], ['planos', 'Weekly Study Plans', 'plan'], ['relatorios', 'Relatórios de Desempenho', 'chart'], ['financeiro', 'Financeiro', 'wallet'], ['materiais', 'Biblioteca de Materiais', 'folder'], ['objetivos', 'Objetivos de Aprendizagem', 'target'], ['contratos', 'Contrato e Cronograma', 'route'], ['relaula', 'Relatório da Aula', 'contract'], ['gravacoes', 'Gravações das Aulas', 'video'], ['turmas', 'Turmas', 'users'], ['portal', 'Área do Aluno', 'video'], ['tarefas', 'Tarefas da Professora', 'check'], ['configuracoes', 'Configurações', 'sliders']];
+const NAV_GROUPS = [
+  ['Escola', ['dashboard', 'alunos', 'calendario', 'aulas', 'turmas']],
+  ['Ensino', ['exercicios', 'planos', 'materiais', 'relaula', 'gravacoes']],
+  ['Acompanhamento', ['relatorios', 'objetivos', 'contratos']],
+  ['Negócio', ['financeiro', 'tarefas']],
+  ['Área do aluno', ['portal']],
+  ['Sistema', ['configuracoes']]
+];
 const NAV_OF = { aluno: 'alunos', plano: 'planos', previa: 'portal', previaresp: 'portal' };
 function parseRoute() {
   const h = UI.route || location.hash.slice(1) || 'dashboard';
@@ -1352,7 +1378,7 @@ function buildShell() {
   $('#root').innerHTML = html`<div class="shell" id="shell">
     <aside class="side" id="side" aria-label="Menu principal">
       <div class="brand"><img src="${LOGO}" alt="Logo Teacher Gabriela Campos"><div><h1 id="brand-name"></h1><small id="brand-sub"></small></div></div>
-      <nav class="nav" id="nav">${PAGES.map(([id, label, ic]) => html`<a href="#${id}" data-nav="${id}">${ico(ic)}<span>${label}</span></a>`)}</nav>
+      <nav class="nav" id="nav">${NAV_GROUPS.map(([g, ids]) => html`<div class="nav-g" role="group" aria-label="${g}"><div class="nav-h">${g}</div>${ids.map(id => PAGES.find(p => p[0] === id)).filter(Boolean).map(([id, label, ic]) => html`<a href="#${id}" data-nav="${id}">${ico(ic)}<span>${label}</span></a>`)}</div>`)}</nav>
       <div class="side-foot"><div id="sync"></div><div id="whoami"></div></div>
     </aside>
     <div class="scrim" id="scrim" data-act="side-close"></div>
@@ -3683,9 +3709,17 @@ function ptHwList(d, limit) {
   return { rows, html: rows.length ? html`<div class="pt-hws">${(limit ? rows.slice(0, limit) : rows).map(item)}</div>` : html`<p class="muted small" style="margin:0">Nenhuma atividade por enquanto.</p>` };
 }
 const PT_PREVIEW = { sub: null };
+const PT_SUB = { homework: 'Faça e entregue as atividades', aulas: 'Suas aulas e relatórios', gravacoes: 'Reveja as aulas gravadas', progresso: 'Cronograma e evolução', materiais: 'Materiais das aulas', plano: 'Plano de estudos da semana', guia: 'Zoom, Classroom e tutoriais', dados: 'Contrato e cadastro' };
+const G_SUB = { homework: 'Situação e notas', aulas: 'Aulas e relatórios', progresso: 'Cronograma e evolução', dados: 'Contrato e cadastro', financeiro: 'Mensalidades' };
+/* grade de atalhos (cartões com ícone, título e descrição) */
+function ptMenu(tabs, act, subs, badges) {
+  return html`<div class="pt-menu"><div class="pt-menu-h">Acesso rápido</div><div class="pt-menu-g">${tabs.map(([k, l, ic]) => html`<button type="button" class="pt-mi" data-act="${act}" data-tab="${k}"><span class="pt-mi-ic">${ico(ic)}</span><span class="pt-mi-t"><b>${l}</b><small>${subs[k] || ''}</small></span>${badges[k] ? html`<i class="cnt">${badges[k]}</i>` : html`<span class="pt-mi-go" aria-hidden="true">›</span>`}</button>`)}</div></div>`;
+}
+const ptBack = (act, home, label) => html`<button type="button" class="pt-back" data-act="${act}" data-tab="${home}">← Início</button><h2 class="pt-pg">${label}</h2>`;
 function ptHome(d) {
   const today = todayISO(), ev = stageEvolution(d.stages || [], today), hw = ptHwList(d, 4), pend = hw.rows.filter(r => ['pendente', 'atrasada', 'rascunho', 'refazer'].includes(r.k)).length;
   return html`${ptNext(d)}
+  ${ptMenu(PT_TABS.slice(1), 'pt-tab', PT_SUB, { homework: pend })}
   <section class="pt-card"><h2>${ico('pencil')} Homework</h2>${pend ? html`<p class="small" style="margin:0 0 10px"><b>${pend}</b> ${pend === 1 ? 'atividade espera' : 'atividades esperam'} por você.</p>` : html`<p class="small muted" style="margin:0 0 10px">Tudo em dia por aqui. 🎉</p>`}${hw.html}${hw.rows.length > 4 ? html`<p style="margin:12px 0 0">${btn('Ver todas', 'pt-tab', { cls: 'sm', data: { tab: 'homework' } })}</p>` : ''}</section>
   ${ev.total ? html`<section class="pt-card"><h2>${ico('route')} Minha evolução</h2><div class="pt-tiles"><div><b>${ev.pctDone}%</b><small>do cronograma concluído</small></div><div><b>${ev.done}/${ev.total}</b><small>etapas concluídas</small></div><div><b>${d.lessonsDone}${d.lessonsTotal ? '/' + d.lessonsTotal : ''}</b><small>aulas realizadas</small></div></div><p style="margin:12px 0 0">${btn('Ver progresso', 'pt-tab', { cls: 'sm', data: { tab: 'progresso' } })}</p></section>` : ''}`;
 }
@@ -3735,7 +3769,7 @@ function portalView(d) {
   const tab = PT_TABS.some(t => t[0] === UI.ptTab) ? UI.ptTab : 'inicio';
   const pend = (() => { const sub = S.mode === 'aluno' ? subItems() : (PT_PREVIEW.sub || {}), ret = S.mode === 'aluno' ? retItems() : {}; return (d.homework || []).filter(h => ['pendente', 'atrasada', 'refazer'].includes(hwKeyStudent(h, sub, ret, todayISO()))).length; })();
   const body = { inicio: ptHome, homework: dd => html`<section class="pt-card"><h2>${ico('pencil')} Homework</h2><p class="small muted" style="margin:0 0 10px">Abra uma atividade para fazer o documento, salvar e entregar. A professora corrige e devolve aqui.</p>${ptHwList(dd).html}</section>`, aulas: ptClasses, gravacoes: ptRecordings, progresso: ptProgress, materiais: ptMaterials, plano: ptPlan, guia: ptGuide, dados: ptData }[tab](d);
-  return html`${bannerHtml(d.banner)}<nav class="pt-tabs" role="tablist" aria-label="Seções do painel">${PT_TABS.map(([k, l, ic]) => html`<button type="button" role="tab" aria-selected="${tab === k}" data-act="pt-tab" data-tab="${k}">${ico(ic)}<span>${l}</span>${k === 'homework' && pend ? html`<i class="cnt">${pend}</i>` : ''}</button>`)}</nav><div class="pt-stack">${body}</div>`;
+  return html`${bannerHtml(d.banner)}${tab === 'inicio' ? '' : ptBack('pt-tab', 'inicio', (PT_TABS.find(t => t[0] === tab) || [])[1])}<div class="pt-stack">${body}</div>`;
 }
 function portalPage() {
   if (S.portal && S.portal.guardian) return guardianPage();
@@ -3983,7 +4017,7 @@ function guardianView(doc) {
   const pend = (kid.homework || []).filter(h => ['pendente', 'atrasada', 'refazer'].includes(h.key)).length;
   const body = { resumo: gResumo, homework: d => html`<section class="pt-card"><h2>${ico('pencil')} Homework</h2><p class="small muted" style="margin:0 0 10px">Acompanhamento somente leitura: situação, nota e comentário da professora.</p>${gHwList(d).html}</section>`, aulas: ptClasses, progresso: ptProgress, dados: ptData, financeiro: gFinance }[tab](kid);
   return html`${kids.length > 1 ? html`<div class="pt-kids" role="tablist" aria-label="Alunos">${kids.map(k => html`<button type="button" role="tab" class="btn${k === kid ? ' primary' : ''}" aria-selected="${k === kid}" data-act="g-kid" data-id="${k.studentId}">${k.name}</button>`)}</div>` : ''}
-  ${bannerHtml(kid.banner)}<nav class="pt-tabs" role="tablist" aria-label="Seções do painel">${tabs.map(([k, l, ic]) => html`<button type="button" role="tab" aria-selected="${tab === k}" data-act="g-tab" data-tab="${k}">${ico(ic)}<span>${l}</span>${k === 'homework' && pend ? html`<i class="cnt">${pend}</i>` : ''}</button>`)}</nav><div class="pt-stack">${body}</div>`;
+  ${bannerHtml(kid.banner)}${tab === 'resumo' ? ptMenu(tabs.filter(t => t[0] !== 'resumo'), 'g-tab', G_SUB, { homework: pend }) : ptBack('g-tab', 'resumo', (tabs.find(t => t[0] === tab) || [])[1])}<div class="pt-stack">${body}</div>`;
 }
 function guardianPage() {
   const d = S.portal, first = String(UI.userName || '').split(' ')[0];

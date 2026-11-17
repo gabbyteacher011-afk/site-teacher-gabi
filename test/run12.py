@@ -17,6 +17,6 @@ with sync_playwright() as p:
     d=[v for k,v in t.store().items() if k.startswith('portal/')][0]; t.ok(len(d['recordings'])==0, 'ocultar remove do painel')
     t.btn('Mostrar'); pg.wait_for_timeout(300)
     t.go('portal'); pg.get_by_role('button', name='Prévia').click(); pg.wait_for_timeout(300)
-    pg.get_by_role('tab', name='Gravações').click(); pg.wait_for_timeout(200); t.ok('Aula 1' in t.text() and 'Assistir' in t.text(), 'aba Gravações no painel')
+    PT(pg,'Gravações').click(); pg.wait_for_timeout(200); t.ok('Aula 1' in t.text() and 'Assistir' in t.text(), 'aba Gravações no painel')
     t.go('alunos'); 
     print('ERRS', t.errs, 'FAILS', t.fails); t.b.close()

@@ -41,7 +41,7 @@ with sync_playwright() as p:
     # prévia do responsável
     pg.locator('tr', has_text='Lia').get_by_role('button', name='Prévia resp.').click(); pg.wait_for_timeout(500)
     tx=pg.inner_text('#main'); t.ok('somente leitura' in tx and 'Reading A' in tx or True, 'prévia abre')
-    pg.get_by_role('tab', name='Financeiro').click(); pg.wait_for_timeout(200); ft=pg.inner_text('#main')
+    PT(pg,'Financeiro').click(); pg.wait_for_timeout(200); ft=pg.inner_text('#main')
     t.ok('Cobranças' in ft and 'Pago' in ft, 'prévia mostra financeiro')
     # desligar financeiro
     t.go('portal'); pg.locator('tr', has_text='Lia').get_by_role('button', name='Responsáveis').click(); pg.wait_for_timeout(300)

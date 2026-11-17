@@ -20,6 +20,6 @@ with sync_playwright() as p:
     pg.fill('input[name=calendarUrl]','https://calendar.google.com/x'); pg.click('#modals button[type=submit]'); pg.wait_for_timeout(1800)
     d=[v for k,v in t.store().items() if k.startswith('portal/')][0]; t.ok(d['calendar']['url']=='https://calendar.google.com/x', 'calendar no espelho')
     pg.get_by_role('button', name='Prévia').click(); pg.wait_for_timeout(300)
-    pg.get_by_role('tab', name='Meus dados').click(); pg.wait_for_timeout(200); tx=t.text(); t.ok('Calendar' in tx and 'Abrir calendário' in tx, 'Dados mostra seção Calendar')
-    pg.get_by_role('tab', name='Plano da semana').click(); pg.wait_for_timeout(200); t.ok('Abrir PDF' in t.text(), 'aba Plano mostra PDF clicável')
+    PT(pg,'Meus dados').click(); pg.wait_for_timeout(200); tx=t.text(); t.ok('Calendar' in tx and 'Abrir calendário' in tx, 'Dados mostra seção Calendar')
+    PT(pg,'Plano da semana').click(); pg.wait_for_timeout(200); t.ok('Abrir PDF' in t.text(), 'aba Plano mostra PDF clicável')
     print('ERRS', t.errs, 'FAILS', t.fails); t.b.close()
